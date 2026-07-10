@@ -1,0 +1,8 @@
+{
+  "baseToken": "YOUR_FEISHU_BASE_TOKEN",
+  "tableId": "YOUR_TABLE_ID",
+  "baseUrl": "https://your-workspace.feishu.cn/base/YOUR_FEISHU_BASE_TOKEN",
+  "serviceUrl": "http://127.0.0.1:8766",
+  "serviceToken": "CHANGE_ME_TO_A_RANDOM_LOCAL_TOKEN",
+  "larkCliPath": "lark-cli"
+}

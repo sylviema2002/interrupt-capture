@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>该回来了</title>
+  <style>
+    :root {
+      --bg: #fff7ed;
+      --panel: #fff;
+      --text: #1f2937;
+      --muted: #687386;
+      --line: #f0d0aa;
+      --primary: #c05621;
+      --primary-dark: #9a4218;
+      --blue: #2864d8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .card {
+      width: 100%;
+      background: var(--panel);
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 16px 40px rgba(154, 66, 24, 0.18);
+      padding: 18px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .text {
+      margin: 0 0 12px;
+      font-size: 17px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .source {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      min-height: 44px;
+      padding: 10px;
+      font: inherit;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    button:hover { background: var(--primary-dark); }
+
+    button.secondary {
+      background: #edf2f8;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    button.secondary:hover { background: #e1e8f1; }
+
+    button.blue {
+      background: var(--blue);
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1 id="heading">该回来了</h1>
+    <p class="text" id="text">正在读取提醒...</p>
+    <p class="source" id="source"></p>
+    <div class="actions">
+      <button id="doneBtn" type="button">回来了/完成</button>
+      <button class="secondary" id="snoozeBtn" type="button">再等一下</button>
+      <button class="secondary" id="laterBtn" type="button">稍后提醒</button>
+      <button class="secondary" id="pauseBtn" type="button">暂停</button>
+      <button class="blue" id="openBtn" type="button">打开来源</button>
+    </div>
+  </main>
+  <script src="reminder.js"></script>
+</body>
+</html>

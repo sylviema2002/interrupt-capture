@@ -1,0 +1,47 @@
+# Personal Feishu config
+sync-config.json
+.sync-tmp/
+interrupt-capture-extension/sync-config.json
+interrupt-capture-extension/.sync-tmp/
+
+# Browser extension private packaging files
+*.pem
+*.crx
+
+# Local runtime files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local package/cache folders
+.npmrc
+node_modules/
+npm-cache/
+npm-global/
+npm-tmp/
+.npm-cache/
+.npm-global/
+
+# Release packaging scope
+dist/*
+!dist/interrupt-capture-feishu-cli.zip
+!dist/interrupt-capture-local-only.zip
+release-archive/
+
+# Generated presentation/story artifacts
+.pptx-build/
+how-i-built-this-*.pdf
+how-i-built-this-*.pptx
+how-i-built-this-*.html
+build_interrupt_capture_pptx_standard.js
+
+# Local Feishu document working drafts
+docs/
+
+# Early local prototype, kept for personal reference only
+interrupt-capture-tool/
+
+# Local Codex/plugin workspace files
+.codex/
+.agents/

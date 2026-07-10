@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "中断快记（本地版）",
+  "version": "0.7.0",
+  "description": "一键记录当前浏览器标签页的中断事项，保存在本机浏览器中，并支持导出 TXT。",
+  "permissions": ["activeTab", "alarms", "storage", "tabs", "windows", "downloads", "system.display"],
+  "action": {
+    "default_title": "中断快记（本地版）",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

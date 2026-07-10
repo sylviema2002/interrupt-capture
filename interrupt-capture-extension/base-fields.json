@@ -1,0 +1,57 @@
+[
+  {
+    "type": "text",
+    "name": "内容"
+  },
+  {
+    "type": "text",
+    "name": "来源标题"
+  },
+  {
+    "type": "text",
+    "name": "来源链接",
+    "style": {
+      "type": "url"
+    }
+  },
+  {
+    "type": "select",
+    "name": "状态",
+    "multiple": false,
+    "options": [
+      {
+        "name": "未完成",
+        "hue": "Orange",
+        "lightness": "Light"
+      },
+      {
+        "name": "已完成",
+        "hue": "Green",
+        "lightness": "Light"
+      },
+      {
+        "name": "暂停",
+        "hue": "Brown",
+        "lightness": "Light"
+      }
+    ]
+  },
+  {
+    "type": "datetime",
+    "name": "记录时间",
+    "style": {
+      "format": "yyyy-MM-dd HH:mm"
+    }
+  },
+  {
+    "type": "datetime",
+    "name": "完成时间",
+    "style": {
+      "format": "yyyy-MM-dd HH:mm"
+    }
+  },
+  {
+    "type": "text",
+    "name": "插件记录ID"
+  }
+]

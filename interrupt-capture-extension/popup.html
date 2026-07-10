@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>中断快记</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #fff;
+      --text: #1f2937;
+      --muted: #687386;
+      --line: #dfe5ec;
+      --primary: #2864d8;
+      --primary-dark: #1f53b6;
+      --danger: #b93a3a;
+      --done: #1b7d4b;
+      --paused: #8a6d1d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      width: 360px;
+      margin: 0;
+      padding: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .topbar h1 { margin: 0; }
+
+    .icon-btn {
+      min-height: 32px;
+      width: 34px;
+      padding: 0;
+      border-radius: 8px;
+      background: #edf2f8;
+      color: var(--text);
+      font-size: 17px;
+      line-height: 1;
+    }
+
+    .icon-btn:hover { background: #e1e8f1; }
+
+    .settings {
+      display: none;
+      margin: 0 0 8px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .settings.open { display: block; }
+
+    .settings-row {
+      display: grid;
+      grid-template-columns: 1fr 76px auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .settings-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .settings-actions.single {
+      grid-template-columns: 1fr;
+    }
+
+    .settings label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font: inherit;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 88px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      resize: vertical;
+      line-height: 1.5;
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      min-height: 36px;
+      padding: 8px 10px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button:hover { background: var(--primary-dark); }
+
+    button.secondary {
+      background: #edf2f8;
+      color: var(--text);
+    }
+
+    button.secondary:hover { background: #e1e8f1; }
+
+    button.danger {
+      background: #fae7e7;
+      color: var(--danger);
+    }
+
+    .source,
+    .meta,
+    .empty {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .source {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 8px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+
+    .primary {
+      min-height: 42px;
+      font-weight: 700;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--primary);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 9px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .item.done {
+      opacity: 0.68;
+      border-left-color: var(--done);
+    }
+
+    .item.paused {
+      opacity: 0.78;
+      border-left-color: var(--paused);
+      background: #fffaf0;
+    }
+
+    .text {
+      margin: 0;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .item-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .item-actions button {
+      min-height: 30px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .status {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      min-height: 34px;
+    }
+
+    .status.ok {
+      color: #176c42;
+      border-color: #b9e7ce;
+      background: #eefaf3;
+    }
+
+    .status.bad {
+      color: #9b2f2f;
+      border-color: #f0c2c2;
+      background: #fff0f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>中断快记</h1>
+    <button class="icon-btn" id="settingsBtn" type="button" title="提醒设置" aria-label="提醒设置">⚙</button>
+  </div>
+  <section class="settings" id="settingsPanel">
+    <div class="settings-row">
+      <label for="defaultMinutes">默认提醒时间（分钟）</label>
+      <input id="defaultMinutes" type="number" min="1" max="1440" step="1">
+      <button class="secondary" id="saveSettingsBtn" type="button">保存</button>
+    </div>
+    <div class="settings-actions single">
+      <button class="secondary" id="feedbackBtn" type="button">提交反馈</button>
+    </div>
+  </section>
+  <div class="source" id="sourceText">正在读取当前页...</div>
+  <form id="captureForm">
+    <textarea id="quickText" placeholder="一句话写到哪了，回来先做什么" autofocus required></textarea>
+    <div class="actions">
+      <button class="primary" id="primarySubmitBtn" type="submit">记一下，15 分钟后提醒</button>
+      <button class="secondary" id="copyOpenBtn" type="button">复制未完成</button>
+      <button class="secondary" id="testBtn" type="button">测试提醒</button>
+    </div>
+    <div class="status" id="statusText">先点“测试提醒”，这里会显示检测结果。</div>
+  </form>
+  <section class="list" id="itemList"></section>
+  <script src="popup.js"></script>
+</body>
+</html>
