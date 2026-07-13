@@ -57,12 +57,18 @@ dist/
 
 ### 飞书同步版
 
-最推荐的用法是：把 GitHub 地址直接发给 Codex、Claude Code、Cursor 等 AI 助手，让它帮你把项目文件下载到电脑里、配置和安装。这里的 GitHub 地址，就是项目上传到 GitHub 之后的网页链接。
+最推荐的用法是：把 GitHub 地址直接发给 Codex、Claude Code、Cursor 等 AI 助手，让它帮你把项目文件下载到电脑里、配置和安装。
+
+GitHub 地址：
+
+```text
+https://github.com/sylviema2002/interrupt-capture
+```
 
 给 AI 的提示词：
 
 ```text
-请帮我从这个 GitHub 项目安装并配置“中断快记”飞书同步版 Chrome 插件：把这里替换成 GitHub 地址。请你把项目文件下载到我的电脑里，使用 interrupt-capture-extension 这个插件文件夹。如果我还没有飞书多维表格，请帮我新建一张“中断快记”表；如果我已经有表，请帮我检查字段是否齐全。表里需要这些字段：内容、来源标题、来源链接、状态、记录时间、完成时间、插件记录ID。请帮我从飞书表格链接里识别 baseToken 和 tableId，填进 sync-config.json。baseToken 是飞书多维表格这个文件的编号，tableId 是里面某一张表的编号。请根据 sync-config.example.json 在同一个文件夹里新建 sync-config.json，不要直接改名覆盖示例文件。然后启动 start-sync-service.cmd，指导我在 Chrome 或 Edge 扩展程序里加载 interrupt-capture-extension 文件夹，最后测试提醒和写入飞书是否正常。注意：sync-config.json 是我的私人配置，不要上传、公开或发给别人。
+请帮我从这个 GitHub 项目安装并配置“中断快记”飞书同步版 Chrome 插件：https://github.com/sylviema2002/interrupt-capture 。请你把项目文件下载到我的电脑里，使用 interrupt-capture-extension 这个插件文件夹。如果我还没有飞书多维表格，请帮我新建一张“中断快记”表；如果我已经有表，请帮我检查字段是否齐全。表里需要这些字段：内容、来源标题、来源链接、状态、记录时间、完成时间、插件记录ID。请帮我从飞书表格链接里识别 baseToken 和 tableId，填进 sync-config.json。baseToken 是飞书多维表格这个文件的编号，tableId 是里面某一张表的编号。请根据 sync-config.example.json 在同一个文件夹里新建 sync-config.json，不要直接改名覆盖示例文件。然后启动 start-sync-service.cmd，指导我在 Chrome 或 Edge 扩展程序里加载 interrupt-capture-extension 文件夹，最后测试提醒和写入飞书是否正常。注意：sync-config.json 是我的私人配置，不要上传、公开或发给别人。
 ```
 
 人工安装只作为备用：
@@ -80,7 +86,7 @@ dist/
 
 右上角“设置”可以修改默认提醒时间。这个设置只影响之后新增的事项；已经记录的事项可以在对应卡片上点“稍后提醒”临时调整。
 
-设置里的“提交反馈”可复制反馈模板；项目配置 GitHub Issues 地址后，会直接打开反馈页面。
+设置里的“提交反馈”会直接打开 GitHub Issue 页面，并自动带上反馈模板。
 
 ### 本地版
 
@@ -96,7 +102,7 @@ dist/
 
 右上角“设置”可以修改默认提醒时间。每条事项也可以单独点“稍后提醒”，临时改成 15 分钟后、1 小时后、明天 9 点或自定义时间。
 
-设置里的“提交反馈”可复制反馈模板；项目配置 GitHub Issues 地址后，会直接打开反馈页面。
+设置里的“提交反馈”会直接打开 GitHub Issue 页面，并自动带上反馈模板。
 
 ## 更新方式
 

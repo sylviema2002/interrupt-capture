@@ -5,7 +5,7 @@ const STORAGE_KEY = "interrupt-capture-local-only-items-v1";
 const SETTINGS_KEY = "interrupt-capture-local-only-settings-v1";
 const DEFAULT_REMIND_MINUTES = 15;
 const VERSION_TYPE = "本地版";
-const FEEDBACK_ISSUE_URL = "";
+const FEEDBACK_ISSUE_URL = "https://github.com/sylviema2002/interrupt-capture/issues/new";
 const quickText = document.querySelector("#quickText");
 const form = document.querySelector("#captureForm");
 const itemList = document.querySelector("#itemList");
@@ -408,7 +408,7 @@ feedbackBtn.addEventListener("click", async () => {
     return;
   }
   await navigator.clipboard.writeText(feedbackTemplate());
-  setStatus("已复制反馈模板。GitHub 地址配置好后，这个按钮会直接打开 Issue 页面。", "ok");
+  setStatus("已打开 GitHub Issue 页面。", "ok");
 });
 
 testBtn.addEventListener("click", async () => {
