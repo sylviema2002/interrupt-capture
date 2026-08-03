@@ -10,6 +10,7 @@ const PORT = Number(process.env.INTERRUPT_CAPTURE_PORT || 8766);
 const TEMP_DIR = path.join(__dirname, ".sync-tmp");
 const CONFIG_PATH = path.join(__dirname, "sync-config.json");
 const CONFIG_EXAMPLE_PATH = path.join(__dirname, "sync-config.example.json");
+const NODE_DIR = "C:\\Program Files\\nodejs";
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
@@ -61,7 +62,13 @@ function runLark(args) {
     const file = isCmd ? "cmd.exe" : command;
     const finalArgs = isCmd ? ["/c", command, ...args] : args;
 
-    execFile(file, finalArgs, { cwd: __dirname, windowsHide: true }, (error, stdout, stderr) => {
+    const env = { ...process.env };
+    if (process.platform === "win32" && fs.existsSync(path.join(NODE_DIR, "node.exe"))) {
+      env.Path = `${NODE_DIR};${env.Path || env.PATH || ""}`;
+      env.PATH = env.Path;
+    }
+
+    execFile(file, finalArgs, { cwd: __dirname, windowsHide: true, env }, (error, stdout, stderr) => {
       const text = stdout || stderr || "";
       if (error) {
         const wrapped = new Error(text || error.message);
