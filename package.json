@@ -1,6 +1,6 @@
 {
   "name": "interrupt-capture",
-  "version": "0.7.2",
+  "version": "0.8.6",
   "private": false,
   "description": "A lightweight Chrome extension for capturing interrupted work and syncing it to Feishu Base.",
   "author": "马骁艺",

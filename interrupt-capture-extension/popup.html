@@ -6,16 +6,19 @@
   <title>中断快记</title>
   <style>
     :root {
-      --bg: #f7f8fb;
+      --bg: #f6f8ff;
       --panel: #fff;
-      --text: #1f2937;
-      --muted: #687386;
-      --line: #dfe5ec;
-      --primary: #2864d8;
-      --primary-dark: #1f53b6;
-      --danger: #b93a3a;
-      --done: #1b7d4b;
-      --paused: #8a6d1d;
+      --text: #1f2329;
+      --muted: #646a73;
+      --line: #dee0e3;
+      --primary: #1f5fd7;
+      --primary-dark: #194fb4;
+      --primary-soft: #f0f4ff;
+      --purple: #7b4dff;
+      --purple-soft: #f8f5ff;
+      --danger: #d83931;
+      --done: #18a058;
+      --paused: #7b61ff;
     }
 
     * { box-sizing: border-box; }
@@ -24,15 +27,19 @@
       width: 360px;
       margin: 0;
       padding: 12px;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at top right, rgba(123, 97, 255, 0.10), transparent 32%),
+        linear-gradient(180deg, #f4f7ff 0%, var(--bg) 45%, #fbfcff 100%);
       color: var(--text);
       font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
     }
 
     h1 {
       margin: 0 0 8px;
-      font-size: 18px;
+      font-size: 19px;
+      font-weight: 700;
       letter-spacing: 0;
+      color: var(--text);
     }
 
     .topbar {
@@ -50,13 +57,13 @@
       width: 34px;
       padding: 0;
       border-radius: 8px;
-      background: #edf2f8;
-      color: var(--text);
+      background: var(--primary-soft);
+      color: var(--primary-dark);
       font-size: 17px;
       line-height: 1;
     }
 
-    .icon-btn:hover { background: #e1e8f1; }
+    .icon-btn:hover { background: #e7edff; }
 
     .settings {
       display: none;
@@ -64,7 +71,8 @@
       padding: 9px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff;
+      background: var(--panel);
+      box-shadow: 0 4px 14px rgba(31, 35, 41, 0.05);
     }
 
     .settings.open { display: block; }
@@ -92,13 +100,16 @@
       font-size: 12px;
     }
 
-    input[type="number"] {
+    input[type="number"],
+    select {
       width: 100%;
       min-height: 34px;
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 6px 8px;
       font: inherit;
+      background: #fff;
+      color: var(--text);
     }
 
     textarea {
@@ -110,6 +121,16 @@
       resize: vertical;
       line-height: 1.5;
       font: inherit;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    textarea:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: rgba(51, 112, 255, 0.65);
+      box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.10);
     }
 
     button {
@@ -126,15 +147,20 @@
     button:hover { background: var(--primary-dark); }
 
     button.secondary {
-      background: #edf2f8;
+      background: var(--primary-soft);
       color: var(--text);
     }
 
-    button.secondary:hover { background: #e1e8f1; }
+    button.secondary:hover { background: #e7edff; }
 
     button.danger {
-      background: #fae7e7;
+      background: #fff1f0;
       color: var(--danger);
+    }
+
+    button.listening {
+      background: var(--purple);
+      color: #fff;
     }
 
     .source,
@@ -154,13 +180,14 @@
 
     .actions {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
       margin-top: 8px;
       align-items: center;
     }
 
     .primary {
+      grid-column: 1 / -1;
       min-height: 42px;
       font-weight: 700;
     }
@@ -181,6 +208,7 @@
       padding: 9px;
       display: grid;
       gap: 7px;
+      box-shadow: 0 3px 10px rgba(31, 35, 41, 0.04);
     }
 
     .item.done {
@@ -191,7 +219,7 @@
     .item.paused {
       opacity: 0.78;
       border-left-color: var(--paused);
-      background: #fffaf0;
+      background: var(--purple-soft);
     }
 
     .text {
@@ -199,6 +227,8 @@
       line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-word;
+      color: var(--text);
+      font-weight: 600;
     }
 
     .item-actions {
@@ -216,7 +246,7 @@
     .empty {
       border: 1px dashed var(--line);
       border-radius: 8px;
-      background: #fff;
+      background: var(--panel);
       padding: 16px;
       text-align: center;
     }
@@ -226,7 +256,7 @@
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff;
+      background: var(--panel);
       color: var(--muted);
       font-size: 12px;
       line-height: 1.5;
@@ -243,6 +273,158 @@
       color: #9b2f2f;
       border-color: #f0c2c2;
       background: #fff0f0;
+    }
+
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 14px;
+      background: rgba(31, 35, 41, 0.18);
+    }
+
+    .dialog {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgba(31, 35, 41, 0.16);
+      padding: 14px;
+    }
+
+    .dialog h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.35;
+      color: var(--text);
+    }
+
+    .dialog p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .dialog-options {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .dialog-option {
+      width: 100%;
+      min-height: 38px;
+      background: #f5f6f7;
+      color: var(--text);
+      text-align: left;
+      font-weight: 600;
+    }
+
+    .dialog-option:hover { background: #eef3ff; }
+
+    .dialog input {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .dialog input:focus {
+      border-color: rgba(51, 112, 255, 0.65);
+      box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.10);
+    }
+
+    .schedule-form {
+      display: grid;
+      gap: 10px;
+      margin: 6px 0 10px;
+    }
+
+    .schedule-row {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) 88px;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      border: 1px solid #dfe5ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+    }
+
+    .schedule-row.with-end {
+      grid-template-columns: 22px minmax(0, 1fr) 72px 10px 72px;
+    }
+
+    .schedule-dash {
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .schedule-icon {
+      color: var(--primary-dark);
+      font-size: 17px;
+      line-height: 1;
+      opacity: 0.72;
+    }
+
+    .schedule-date,
+    .schedule-time,
+    .schedule-select-row select {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 6px 8px;
+      background: var(--primary-soft);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .schedule-date:focus,
+    .schedule-time:focus,
+    .schedule-select-row select:focus {
+      border-color: rgba(31, 95, 215, 0.35);
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(31, 95, 215, 0.10);
+    }
+
+    .schedule-time,
+    .schedule-select-row select {
+      text-align: center;
+    }
+
+    .schedule-select-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      border: 1px solid #dfe5ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+    }
+
+
+
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -266,6 +448,7 @@
     <textarea id="quickText" placeholder="一句话写到哪了，回来先做什么" autofocus required></textarea>
     <div class="actions">
       <button class="primary" id="primarySubmitBtn" type="submit">记一下，15 分钟后提醒</button>
+      <button class="secondary" id="voiceBtn" type="button">语音说</button>
       <button class="secondary" id="copyOpenBtn" type="button">复制未完成</button>
       <button class="secondary" id="testBtn" type="button">测试提醒</button>
     </div>

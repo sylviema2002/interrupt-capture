@@ -4,8 +4,10 @@
 const STORAGE_KEY = "interrupt-capture-extension-items-v1";
 const SETTINGS_KEY = "interrupt-capture-extension-settings-v1";
 const DEFAULT_REMIND_MINUTES = 15;
+const MIN_CALENDAR_SERVICE_VERSION = "0.8.4";
 const SYNC_SERVICE_URL = "http://127.0.0.1:8766";
 const CONFIG_FILE = "sync-config.json";
+const CALENDAR_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const reminderWindowByItemId = {};
 const REMINDER_WINDOW_WIDTH = 460;
 const REMINDER_WINDOW_HEIGHT = 330;
@@ -74,6 +76,97 @@ async function syncStatusRequest(item, status) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.ok) {
     throw new Error(data.error || `Sync failed with HTTP ${response.status}`);
+  }
+  return data;
+}
+
+function compareVersions(left, right) {
+  const leftParts = String(left || "").split(".").map(value => Number.parseInt(value, 10) || 0);
+  const rightParts = String(right || "").split(".").map(value => Number.parseInt(value, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+async function syncHealthRequest() {
+  const config = await loadSyncConfig();
+  const response = await fetch(`${config.serviceUrl}/health`, {
+    method: "GET",
+    headers: {
+      "X-Interrupt-Capture-Token": config.serviceToken
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Sync health check failed with HTTP ${response.status}`);
+  }
+  return data;
+}
+
+async function ensureCalendarServiceReady() {
+  const health = await syncHealthRequest();
+  if (!health.features?.calendarEvents || compareVersions(health.serviceVersion, MIN_CALENDAR_SERVICE_VERSION) < 0) {
+    throw new Error("本机同步服务还是旧版。请关闭旧的同步服务窗口，重新双击 start-sync-service.cmd 后再试。");
+  }
+  return health;
+}
+
+async function syncCalendarEventRequest(item, startAt, endAt) {
+  await ensureCalendarServiceReady();
+  const config = await loadSyncConfig();
+  const response = await fetch(`${config.serviceUrl}/calendar-events`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Interrupt-Capture-Token": config.serviceToken
+    },
+    body: JSON.stringify({ item, startAt, endAt })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    const detail = [data.error, data.stderr, data.stdout].filter(Boolean).join("\n");
+    throw new Error(detail || `Calendar sync failed with HTTP ${response.status}`);
+  }
+  return data;
+}
+
+async function syncCalendarDeleteRequest(item) {
+  await ensureCalendarServiceReady();
+  const config = await loadSyncConfig();
+  const response = await fetch(`${config.serviceUrl}/calendar-events/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Interrupt-Capture-Token": config.serviceToken
+    },
+    body: JSON.stringify({ item })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    const detail = [data.error, data.stderr, data.stdout].filter(Boolean).join("\n");
+    throw new Error(detail || `Calendar delete failed with HTTP ${response.status}`);
+  }
+  return data;
+}
+
+async function syncCalendarCheckRequest(item) {
+  await ensureCalendarServiceReady();
+  const config = await loadSyncConfig();
+  const response = await fetch(`${config.serviceUrl}/calendar-events/check`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Interrupt-Capture-Token": config.serviceToken
+    },
+    body: JSON.stringify({ item })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    const detail = [data.error, data.stderr, data.stdout].filter(Boolean).join("\n");
+    throw new Error(detail || `Calendar check failed with HTTP ${response.status}`);
   }
   return data;
 }
@@ -249,7 +342,7 @@ async function scheduleItem(item) {
 
 async function restoreSchedules() {
   const items = await loadItems();
-  let changed = false;
+  let changed = await reconcileCalendarEvents(items);
   for (const item of items) {
     if (item.done || item.paused) {
       await chrome.alarms.clear(alarmName(item.id));
@@ -268,6 +361,35 @@ async function restoreSchedules() {
   }
   if (changed) await saveItems(items);
   await updateBadge();
+}
+
+async function reconcileCalendarEvents(items) {
+  let changed = false;
+  for (const item of items) {
+    if (item.done || !item.paused || !item.calendarEventId || item.calendarStatus === "已删除") continue;
+    const lastChecked = item.lastCalendarCheckedAt ? new Date(item.lastCalendarCheckedAt).getTime() : 0;
+    if (Date.now() - lastChecked < CALENDAR_CHECK_INTERVAL_MS) continue;
+
+    try {
+      const result = await syncCalendarCheckRequest(item);
+      item.lastCalendarCheckedAt = new Date().toISOString();
+      if (result.event?.exists === false) {
+        item.calendarStatus = "已删除";
+        item.calendarMissingAt = new Date().toISOString();
+        item.calendarEventId = "";
+        changed = true;
+        try {
+          await syncStatusRequest(item, "暂停");
+        } catch (syncError) {
+          console.warn("Calendar deletion state was saved locally, but Feishu Base update failed:", syncError);
+        }
+      }
+      changed = true;
+    } catch (error) {
+      console.warn("Calendar event reconciliation skipped:", error);
+    }
+  }
+  return changed;
 }
 
 async function createSyncedItem(item) {
@@ -366,6 +488,58 @@ async function rescheduleItem(id, minutesValue, remindAtValue = "") {
   await scheduleItem(updatedItem);
   await updateBadge();
   return updatedItem;
+}
+
+async function createCalendarEventForItem(id, startAt, durationMinutes = 30) {
+  const items = await loadItems();
+  const item = items.find(entry => entry.id === id);
+  if (!item) return null;
+  const startDate = new Date(startAt);
+  if (!Number.isFinite(startDate.getTime()) || startDate.getTime() <= Date.now()) {
+    throw new Error("日程时间无效，或时间已经过去。");
+  }
+  const duration = Math.min(Math.max(Number.parseInt(durationMinutes, 10) || 30, 5), 480);
+  const endAt = new Date(startDate.getTime() + duration * 60 * 1000).toISOString();
+  if (item.calendarEventId || (item.calendarStartAt && !item.calendarMissingAt)) {
+    await syncCalendarDeleteRequest(item);
+  }
+  const calendarResult = await syncCalendarEventRequest(item, startDate.toISOString(), endAt);
+  const updatedItem = {
+    ...item,
+    calendarStartAt: startDate.toISOString(),
+    calendarEndAt: endAt,
+    calendarDurationMinutes: duration,
+    calendarEventId: calendarResult.event?.eventId || "",
+    calendarId: calendarResult.event?.calendarId || item.calendarId || "primary",
+    calendarStatus: "已加入",
+    calendarMissingAt: "",
+    lastCalendarCheckedAt: new Date().toISOString()
+  };
+  const nextItems = items.map(entry => entry.id === id ? updatedItem : entry);
+  await saveItems(nextItems);
+  await syncStatusRequest(updatedItem, "暂停");
+  return updatedItem;
+}
+
+async function deleteSyncedItem(id) {
+  const items = await loadItems();
+  const item = items.find(entry => entry.id === id);
+  if (!item) return null;
+  const deletedItem = {
+    ...item,
+    done: true,
+    paused: false,
+    deletedAt: new Date().toISOString()
+  };
+  if (item.calendarEventId || item.calendarStartAt) {
+    await syncCalendarDeleteRequest(item);
+  }
+  await syncStatusRequest(deletedItem, "已删除");
+  await chrome.alarms.clear(alarmName(id));
+  delete reminderWindowByItemId[id];
+  await saveItems(items.filter(entry => entry.id !== id));
+  await updateBadge();
+  return deletedItem;
 }
 
 async function handleDueItem(id) {
@@ -473,6 +647,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message?.type === "reschedule" && message.id) {
         const item = await rescheduleItem(message.id, message.minutes, message.remindAt);
+        sendResponse({ ok: true, item });
+        return;
+      }
+
+      if (message?.type === "createCalendarEvent" && message.id) {
+        const item = await createCalendarEventForItem(message.id, message.startAt, message.durationMinutes);
+        sendResponse({ ok: true, item });
+        return;
+      }
+
+      if (message?.type === "deleteItem" && message.id) {
+        const item = await deleteSyncedItem(message.id);
         sendResponse({ ok: true, item });
         return;
       }

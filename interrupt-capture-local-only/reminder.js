@@ -40,24 +40,222 @@ function formatTime(value) {
   });
 }
 
-function formatDateTimeForInput(date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function parseDateTimeInput(value) {
-  const match = String(value || "").trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2})$/);
-  if (!match) return null;
-  const [, year, month, day, hour, minute] = match.map(Number);
-  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day ||
-    date.getHours() !== hour ||
-    date.getMinutes() !== minute
-  ) return null;
-  if (date.getTime() <= Date.now()) return null;
+function closeDialog(backdrop, value, resolve) {
+  backdrop.remove();
+  resolve(value);
+}
+
+function showChoiceDialog({ title, description = "", options = [] }) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    const buttons = options.map(option => `
+      <button class="dialog-option" data-value="${escapeHtml(option.value)}" type="button">${escapeHtml(option.label)}</button>
+    `).join("");
+    backdrop.innerHTML = `
+      <section class="dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(title)}</h2>
+        ${description ? `<p>${escapeHtml(description)}</p>` : ""}
+        <div class="dialog-options">${buttons}</div>
+        <div class="dialog-actions">
+          <button class="secondary" data-action="cancel" type="button">取消</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener("click", event => {
+      if (event.target === backdrop || event.target.dataset.action === "cancel") {
+        closeDialog(backdrop, null, resolve);
+        return;
+      }
+      const button = event.target.closest("[data-value]");
+      if (button) closeDialog(backdrop, button.dataset.value, resolve);
+    });
+  });
+}
+
+function showInputDialog({ title, description = "", defaultValue = "", inputMode = "text" }) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    backdrop.innerHTML = `
+      <section class="dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(title)}</h2>
+        ${description ? `<p>${escapeHtml(description)}</p>` : ""}
+        <input id="dialogInput" type="text" inputmode="${escapeHtml(inputMode)}" value="${escapeHtml(defaultValue)}">
+        <div class="dialog-actions">
+          <button data-action="ok" type="button">确定</button>
+          <button class="secondary" data-action="cancel" type="button">取消</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(backdrop);
+    const input = backdrop.querySelector("#dialogInput");
+    input.focus();
+    input.select();
+    backdrop.addEventListener("click", event => {
+      if (event.target === backdrop || event.target.dataset.action === "cancel") {
+        closeDialog(backdrop, null, resolve);
+      }
+      if (event.target.dataset.action === "ok") {
+        closeDialog(backdrop, input.value, resolve);
+      }
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") closeDialog(backdrop, input.value, resolve);
+      if (event.key === "Escape") closeDialog(backdrop, null, resolve);
+    });
+  });
+}
+
+function showWheelDialog({ title, description = "", columns = [] }) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    const dateColumn = columns.find(column => column.id === "date");
+    const hourColumn = columns.find(column => column.id === "hour");
+    const minuteColumn = columns.find(column => column.id === "minute");
+    const otherColumns = columns.filter(column => !["date", "hour", "minute"].includes(column.id));
+    const selectedDate = String(dateColumn?.selected || "");
+    const selectedHour = pad2(hourColumn?.selected ?? 9);
+    const selectedMinute = pad2(minuteColumn?.selected ?? 0);
+    const dateTimeRow = dateColumn && hourColumn && minuteColumn ? `
+      <div class="schedule-row" aria-label="选择日期和时间">
+        <span class="schedule-icon" aria-hidden="true">◷</span>
+        <input class="schedule-date" id="dialogDate" type="date" value="${escapeHtml(selectedDate)}">
+        <input class="schedule-time" id="dialogTime" type="time" step="300" value="${escapeHtml(`${selectedHour}:${selectedMinute}`)}">
+      </div>
+    ` : "";
+    const selectRows = otherColumns.map(column => {
+      const options = column.values.map(option => `
+        <option value="${escapeHtml(option.value)}" ${String(option.value) === String(column.selected) ? "selected" : ""}>${escapeHtml(option.label)}</option>
+      `).join("");
+      return `
+        <label class="schedule-select-row">
+          <span>${escapeHtml(column.label)}</span>
+          <select data-schedule-id="${escapeHtml(column.id)}">${options}</select>
+        </label>
+      `;
+    }).join("");
+    backdrop.innerHTML = `
+      <section class="dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(title)}</h2>
+        ${description ? `<p>${escapeHtml(description)}</p>` : ""}
+        <div class="schedule-form">${dateTimeRow}${selectRows}</div>
+        <div class="dialog-actions">
+          <button data-action="ok" type="button">确定</button>
+          <button class="secondary" data-action="cancel" type="button">取消</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(backdrop);
+    const firstInput = backdrop.querySelector("input, select");
+    firstInput?.focus();
+    const collectValue = () => {
+      const value = {};
+      const dateInput = backdrop.querySelector("#dialogDate");
+      const timeInput = backdrop.querySelector("#dialogTime");
+      if (dateInput) value.date = dateInput.value;
+      if (timeInput) {
+        const [hour = "0", minute = "0"] = timeInput.value.split(":");
+        value.hour = hour;
+        value.minute = minute;
+      }
+      for (const select of backdrop.querySelectorAll("select[data-schedule-id]")) {
+        value[select.dataset.scheduleId] = select.value;
+      }
+      return value;
+    };
+    backdrop.addEventListener("click", event => {
+      if (event.target === backdrop || event.target.dataset.action === "cancel") {
+        closeDialog(backdrop, null, resolve);
+      }
+      if (event.target.dataset.action === "ok") {
+        closeDialog(backdrop, collectValue(), resolve);
+      }
+    });
+    backdrop.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeDialog(backdrop, null, resolve);
+      if (event.key === "Enter") closeDialog(backdrop, collectValue(), resolve);
+    });
+  });
+}
+
+function numberOptions(min, max, step = 1, suffix = "") {
+  const values = [];
+  for (let value = min; value <= max; value += step) {
+    values.push({ value: String(value), label: `${value}${suffix}` });
+  }
+  return values;
+}
+
+function dateOptions(days = 30) {
+  const values = [];
+  const today = new Date();
+  for (let index = 0; index < days; index += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + index);
+    date.setHours(0, 0, 0, 0);
+    const key = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    let prefix = `${date.getMonth() + 1}/${date.getDate()}`;
+    if (index === 0) prefix = "今天";
+    if (index === 1) prefix = "明天";
+    values.push({ value: key, label: `${prefix} 周${"日一二三四五六"[date.getDay()]}` });
+  }
+  return values;
+}
+
+function dateFromKey(key, hour, minute) {
+  const [year, month, day] = String(key || "").split(/[-/]/).map(value => Number.parseInt(value, 10));
+  const parsedHour = Number.parseInt(hour, 10);
+  const parsedMinute = Number.parseInt(minute, 10);
+  if (![year, month, day, parsedHour, parsedMinute].every(Number.isFinite)) return null;
+  if (parsedHour < 0 || parsedHour > 23 || parsedMinute < 0 || parsedMinute > 59) return null;
+  const date = new Date(year, month - 1, day, parsedHour, parsedMinute, 0, 0);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
   return date;
+}
+
+async function chooseMinutesWheel({ title, description, defaultMinutes, min = 1, max = 1440 }) {
+  const selected = Math.min(Math.max(reminderMinutesFor(defaultMinutes), min), max);
+  const input = await showInputDialog({
+    title,
+    description,
+    defaultValue: String(selected),
+    inputMode: "numeric"
+  });
+  if (input === null) return null;
+  const minutes = Number.parseInt(input, 10);
+  if (!Number.isFinite(minutes)) return min;
+  return Math.min(Math.max(minutes, min), max);
+}
+
+async function chooseDateTimeWheel({ title, description, defaultDate }) {
+  const fallback = defaultDate || tomorrowAt(9);
+  const result = await showWheelDialog({
+    title,
+    description,
+    columns: [
+      { id: "date", label: "日期", values: dateOptions(45), selected: `${fallback.getFullYear()}-${pad2(fallback.getMonth() + 1)}-${pad2(fallback.getDate())}` },
+      { id: "hour", label: "小时", values: numberOptions(0, 23, 1, " 点"), selected: fallback.getHours() },
+      { id: "minute", label: "分钟", values: numberOptions(0, 55, 5, " 分"), selected: Math.min(55, Math.round(fallback.getMinutes() / 5) * 5) }
+    ]
+  });
+  if (result === null) return null;
+  const date = dateFromKey(result.date, result.hour, result.minute);
+  if (!date || Number.isNaN(date.getTime())) return { error: "请选择有效的日期和时间。" };
+  if (date.getTime() <= Date.now()) return { error: "时间已经过去，请重新选择。" };
+  return { date };
 }
 
 function tomorrowAt(hour, minute = 0) {
@@ -67,41 +265,40 @@ function tomorrowAt(hour, minute = 0) {
   return date;
 }
 
-function chooseLaterReminder(currentMinutes) {
+async function chooseLaterReminder(currentMinutes) {
   const tomorrowMorning = tomorrowAt(9);
-  const defaultCustom = formatDateTimeForInput(tomorrowMorning);
-  const choice = prompt(
-    [
-      "稍后什么时候提醒？",
-      "1. 15 分钟后",
-      "2. 1 小时后",
-      "3. 明天 9:00",
-      "4. 自定义分钟后",
-      "5. 自定义日期时间",
-      "",
-      "输入 1-5"
-    ].join("\n"),
-    "1"
-  );
-  if (choice === null) return null;
-  const trimmed = choice.trim();
+  const trimmed = await showChoiceDialog({
+    title: "稍后什么时候提醒？",
+    options: [
+      { value: "1", label: "15 分钟后" },
+      { value: "2", label: "1 小时后" },
+      { value: "3", label: "明天 9:00" },
+      { value: "4", label: "自定义分钟" },
+      { value: "5", label: "自定义时间" }
+    ]
+  });
+  if (trimmed === null) return null;
   if (trimmed === "1") return { minutes: 15, label: "15 分钟后" };
   if (trimmed === "2") return { minutes: 60, label: "1 小时后" };
   if (trimmed === "3") return { remindAt: tomorrowMorning.toISOString(), label: `明天 ${pad2(tomorrowMorning.getHours())}:00` };
   if (trimmed === "4") {
-    const input = prompt("多少分钟后提醒？", String(currentMinutes || DEFAULT_REMIND_MINUTES));
-    if (input === null) return null;
-    const minutes = reminderMinutesFor(input);
+    const minutes = await chooseMinutesWheel({
+      title: "选择提醒间隔",
+      defaultMinutes: currentMinutes || DEFAULT_REMIND_MINUTES
+    });
+    if (minutes === null) return null;
     return { minutes, label: `${minutes} 分钟后` };
   }
   if (trimmed === "5") {
-    const input = prompt("输入提醒时间，格式：YYYY-MM-DD HH:mm", defaultCustom);
-    if (input === null) return null;
-    const date = parseDateTimeInput(input);
-    if (!date) return { error: "时间格式不对，或时间已经过去。请用 YYYY-MM-DD HH:mm。" };
-    return { remindAt: date.toISOString(), label: formatTime(date.toISOString()) };
+    const result = await chooseDateTimeWheel({
+      title: "选择提醒时间",
+      defaultDate: tomorrowMorning
+    });
+    if (result === null) return null;
+    if (result.error) return result;
+    return { remindAt: result.date.toISOString(), label: formatTime(result.date.toISOString()) };
   }
-  return { error: "请输入 1-5 之间的数字。" };
+  return { error: "请选择一个提醒时间。" };
 }
 
 async function sendMessage(message) {
@@ -195,7 +392,7 @@ snoozeBtn.addEventListener("click", async () => {
 
 laterBtn.addEventListener("click", async () => {
   if (isTest || !id) return;
-  const later = chooseLaterReminder(reminderMinutesFor(item?.reminderMinutes));
+  const later = await chooseLaterReminder(reminderMinutesFor(item?.reminderMinutes));
   if (!later) return;
   if (later.error) {
     headingEl.textContent = "稍后提醒失败";

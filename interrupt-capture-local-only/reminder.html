@@ -6,14 +6,15 @@
   <title>该回来了</title>
   <style>
     :root {
-      --bg: #fff7ed;
+      --bg: #f6f8ff;
       --panel: #fff;
-      --text: #1f2937;
-      --muted: #687386;
-      --line: #f0d0aa;
-      --primary: #c05621;
-      --primary-dark: #9a4218;
-      --blue: #2864d8;
+      --text: #1f2329;
+      --muted: #646a73;
+      --line: #dee0e3;
+      --primary: #1f5fd7;
+      --primary-dark: #194fb4;
+      --primary-soft: #f0f4ff;
+      --danger-soft: #fff1f0;
     }
 
     * { box-sizing: border-box; }
@@ -21,7 +22,9 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at top right, rgba(123, 97, 255, 0.10), transparent 32%),
+        linear-gradient(180deg, #f4f7ff 0%, var(--bg) 45%, #fbfcff 100%);
       color: var(--text);
       font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
       display: grid;
@@ -32,15 +35,17 @@
     .card {
       width: 100%;
       background: var(--panel);
-      border: 2px solid var(--line);
+      border: 1px solid var(--line);
       border-radius: 8px;
-      box-shadow: 0 16px 40px rgba(154, 66, 24, 0.18);
+      box-shadow: 0 12px 32px rgba(31, 35, 41, 0.14);
       padding: 18px;
     }
 
     h1 {
       margin: 0 0 10px;
       font-size: 24px;
+      color: var(--text);
+      font-weight: 700;
       letter-spacing: 0;
     }
 
@@ -48,6 +53,8 @@
       margin: 0 0 12px;
       font-size: 17px;
       line-height: 1.65;
+      color: var(--text);
+      font-weight: 600;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -81,19 +88,165 @@
     button:hover { background: var(--primary-dark); }
 
     button.secondary {
-      background: #edf2f8;
+      background: #f2f3f5;
       color: var(--text);
       font-weight: 500;
     }
 
-    button.secondary:hover { background: #e1e8f1; }
+    button.secondary:hover { background: #e7edff; }
 
     button.blue {
-      background: var(--blue);
+      background: var(--primary-soft);
+      color: var(--text);
+      font-weight: 600;
     }
 
     .full {
       grid-column: 1 / -1;
+    }
+
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(31, 35, 41, 0.18);
+    }
+
+    .dialog {
+      width: min(100%, 440px);
+      max-width: calc(100vw - 36px);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgba(31, 35, 41, 0.16);
+      padding: 12px;
+    }
+
+    .dialog h2 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      color: var(--text);
+    }
+
+    .dialog p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .dialog-options {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .dialog-option {
+      width: 100%;
+      min-height: 36px;
+      background: #f5f6f7;
+      color: var(--text);
+      text-align: left;
+      font-weight: 600;
+      padding: 8px 10px;
+    }
+
+    .dialog-option:hover { background: #eef3ff; }
+
+    .dialog input {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .dialog input:focus {
+      border-color: rgba(51, 112, 255, 0.65);
+      box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.10);
+    }
+
+    .schedule-form {
+      display: grid;
+      gap: 10px;
+      margin: 6px 0 10px;
+    }
+
+    .schedule-row {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) 88px;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      border: 1px solid #dfe5ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+    }
+
+    .schedule-icon {
+      color: var(--primary-dark);
+      font-size: 17px;
+      line-height: 1;
+      opacity: 0.72;
+    }
+
+    .schedule-date,
+    .schedule-time,
+    .schedule-select-row select {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 6px 8px;
+      background: var(--primary-soft);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .schedule-date:focus,
+    .schedule-time:focus,
+    .schedule-select-row select:focus {
+      border-color: rgba(31, 95, 215, 0.35);
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(31, 95, 215, 0.10);
+    }
+
+    .schedule-time,
+    .schedule-select-row select {
+      text-align: center;
+    }
+
+    .schedule-select-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      border: 1px solid #dfe5ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+    }
+
+
+
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
     }
   </style>
 </head>
