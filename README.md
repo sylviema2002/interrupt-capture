@@ -15,7 +15,7 @@
 - 没有跨日信息时，默认归入中断任务，按设定间隔循环强提醒。
 - 明确说出“明天”“后天”或具体日期时，归入规划任务，并创建飞书日程。
 - 支持自然语言时间点和时间段，例如“明天九点半汇报”“8 月 9 日 10 点到 11 点整理周报”。
-- Windows / macOS 本机辅助程序会托管飞书同步服务，并让提醒窗口尽量置前。
+- 本机辅助程序会托管飞书同步服务，并让提醒窗口尽量置前。
 - 任务可完成、稍后提醒、暂停、恢复、转入待安排、加入或更改飞书日程。
 - 删除已关联日程的任务时，会同步删除飞书日程，并把飞书表格状态改为“已删除”。
 
@@ -27,10 +27,10 @@ interrupt-capture-extension/
   feishu-sync-service.js           本机飞书同步服务
   windows-sync-service-v3.js       Windows 本机辅助服务
   windows-topmost-helper-v3.ps1    Windows 置顶提醒辅助脚本
-  mac-sync-service.js              macOS 本机辅助服务
-  mac-topmost-helper.js            macOS 提醒置前辅助脚本
-  start-sync-service.cmd           Windows 启动脚本
-  start-sync-service.command       macOS 启动脚本
+  mac-sync-service.js              跨平台辅助服务预留
+  mac-topmost-helper.js            跨平台提醒辅助脚本预留
+  start-sync-service.cmd           本机辅助程序启动脚本
+  start-sync-service.command       本机辅助程序启动脚本预留
   sync-config.example.json         飞书同步示例配置
   base-fields.json                 多维表格字段示例
 
@@ -56,7 +56,7 @@ dist/
 
 `sync-config.json` 请从 `sync-config.example.json` 复制生成，不要直接改名覆盖示例文件。里面的 `baseToken` 是飞书多维表格文件编号，`tableId` 是具体表格编号，`serviceToken` 是插件和本机同步服务之间的本地口令。
 
-Windows 用户运行 `start-sync-service.cmd`。macOS 用户运行 `start-sync-service.command`；如果系统提示不能打开，先在终端进入插件文件夹执行 `chmod +x start-sync-service.command`，再右键打开。macOS 第一次使用置前提醒时，可能会要求允许终端或脚本控制浏览器。
+不同电脑环境的本机辅助程序启动方式可能不同。建议把仓库地址交给 AI 助手，让它根据当前电脑环境选择合适的启动脚本，并保留你自己的 `sync-config.json`。
 
 ## 飞书字段
 

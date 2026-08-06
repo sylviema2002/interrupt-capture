@@ -2,8 +2,8 @@
 
 ## 1.0.5
 
-- 新增 macOS 本机辅助程序：`start-sync-service.command`、`mac-sync-service.js` 和 `mac-topmost-helper.js`。
-- macOS 可托管飞书同步服务，并持续把提醒窗口拉到前台，尽量接近 Windows 的置顶提醒体验。
+- 补充跨平台本机辅助程序雏形，便于后续在更多电脑环境中实机验证。
+- 对外说明不承诺未实测环境的适配状态，统一建议由 AI 助手按当前电脑环境配置。
 - 同步服务启动时会补充 Homebrew 常见路径，减少从 Finder 启动时找不到 `node` 或 `lark-cli` 的概率。
 - 公开安装包继续只包含飞书同步版，不包含个人 `sync-config.json`。
 
