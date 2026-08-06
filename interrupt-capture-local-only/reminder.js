@@ -334,7 +334,7 @@ function render() {
     return;
   }
 
-  headingEl.textContent = "该回来了";
+  headingEl.textContent = item.category === "planned" ? "开始完成这项任务" : "该回来了";
   textEl.textContent = item.text || "未命名事项";
   sourceEl.textContent = item.sourceTitle || item.sourceUrl || "没有记录来源";
   snoozeBtn.textContent = `再等 ${reminderMinutesFor(item.reminderMinutes)} 分钟`;
@@ -425,7 +425,7 @@ pauseBtn.addEventListener("click", async () => {
     }
   }
   headingEl.textContent = "已暂停";
-  textEl.textContent = "这件事不会继续提醒，之后可在插件列表里恢复计时。";
+  textEl.textContent = "已移入待安排，之后可在插件列表里重新设置提醒或规划时间。";
   sourceEl.textContent = "";
   closeSoon();
 });

@@ -9,9 +9,9 @@ const FEEDBACK_ISSUE_URL = "https://github.com/sylviema2002/interrupt-capture/is
 const quickText = document.querySelector("#quickText");
 const form = document.querySelector("#captureForm");
 const itemList = document.querySelector("#itemList");
+const categoryTabs = document.querySelector("#categoryTabs");
 const sourceText = document.querySelector("#sourceText");
 const copyOpenBtn = document.querySelector("#copyOpenBtn");
-const voiceBtn = document.querySelector("#voiceBtn");
 const testBtn = document.querySelector("#testBtn");
 const statusText = document.querySelector("#statusText");
 const settingsBtn = document.querySelector("#settingsBtn");
@@ -23,10 +23,10 @@ const exportAllBtn = document.querySelector("#exportAllBtn");
 const cleanupCompletedBtn = document.querySelector("#cleanupCompletedBtn");
 const feedbackBtn = document.querySelector("#feedbackBtn");
 let currentSource = { title: "", url: "" };
-let activeRecognition = null;
 let voiceReminderOverride = null;
 let textCommandParseTimer = null;
 let submissionInProgress = false;
+let selectedCategory = "interrupt";
 
 function chineseNumber(value) {
   const text = String(value || "").trim();
@@ -217,85 +217,6 @@ function escapeHtml(value) {
 function setStatus(message, kind = "") {
   statusText.textContent = message;
   statusText.className = `status ${kind}`.trim();
-}
-
-function speechRecognitionCtor() {
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-}
-
-function appendRecognizedText(text) {
-  const cleanText = String(text || "").trim();
-  if (!cleanText) return;
-  const current = quickText.value.trim();
-  quickText.value = current ? `${current}${/[。！？.!?]$/.test(current) ? "" : "；"}${cleanText}` : cleanText;
-  quickText.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-function stopVoiceInput() {
-  if (activeRecognition) {
-    try {
-      activeRecognition.stop();
-    } catch {
-      // Recognition may already be stopped.
-    }
-    activeRecognition = null;
-  }
-  voiceBtn.classList.remove("listening");
-  voiceBtn.textContent = "语音说";
-}
-
-function startVoiceInput() {
-  if (activeRecognition) {
-    stopVoiceInput();
-    setStatus("已停止语音输入。", "");
-    return;
-  }
-
-  const Recognition = speechRecognitionCtor();
-  if (!Recognition) {
-    setStatus("当前浏览器不支持插件内语音识别。可以点输入框后按 Win + H，用 Windows 语音输入。", "bad");
-    quickText.focus();
-    return;
-  }
-
-  const recognition = new Recognition();
-  activeRecognition = recognition;
-  recognition.lang = "zh-CN";
-  recognition.interimResults = false;
-  recognition.continuous = false;
-
-  recognition.onstart = () => {
-    voiceBtn.classList.add("listening");
-    voiceBtn.textContent = "听写中";
-    setStatus("正在听，你可以直接说：10 分钟后看合同，或明天 9 点写日报。", "");
-  };
-
-  recognition.onresult = event => {
-    const transcript = Array.from(event.results || [])
-      .map(result => result?.[0]?.transcript || "")
-      .join("")
-      .trim();
-    appendRecognizedText(transcript);
-    setStatus(transcript ? "已识别语音，正在判断提醒时间…" : "没有识别到内容，可以再说一次。", transcript ? "ok" : "");
-  };
-
-  recognition.onerror = event => {
-    setStatus(`语音输入失败：${event.error || "请检查麦克风权限"}。也可以点输入框后按 Win + H，用 Windows 语音输入。`, "bad");
-  };
-
-  recognition.onend = () => {
-    activeRecognition = null;
-    voiceBtn.classList.remove("listening");
-    voiceBtn.textContent = "语音说";
-    quickText.focus();
-  };
-
-  try {
-    recognition.start();
-  } catch (error) {
-    activeRecognition = null;
-    setStatus(`语音输入启动失败：${error?.message || String(error)}`, "bad");
-  }
 }
 
 function manifestVersion() {
@@ -541,6 +462,29 @@ function dateFromKey(key, hour, minute) {
   return date;
 }
 
+async function choosePlanTime() {
+  const tomorrowMorning = tomorrowAt(9);
+  const defaultEnd = new Date(tomorrowMorning.getTime() + 30 * 60 * 1000);
+  const result = await showWheelDialog({
+    title: "选择规划时间",
+    columns: [
+      { id: "date", label: "日期", values: dateOptions(45), selected: `${tomorrowMorning.getFullYear()}-${pad2(tomorrowMorning.getMonth() + 1)}-${pad2(tomorrowMorning.getDate())}` },
+      { id: "hour", label: "小时", values: numberOptions(0, 23, 1, " 点"), selected: tomorrowMorning.getHours() },
+      { id: "minute", label: "分钟", values: numberOptions(0, 55, 5, " 分"), selected: tomorrowMorning.getMinutes() },
+      { id: "endHour", label: "结束小时", values: numberOptions(0, 23, 1, " 点"), selected: defaultEnd.getHours() },
+      { id: "endMinute", label: "结束分钟", values: numberOptions(0, 55, 5, " 分"), selected: defaultEnd.getMinutes() }
+    ]
+  });
+  if (result === null) return null;
+  const startDate = dateFromKey(result.date, result.hour, result.minute);
+  if (!startDate || Number.isNaN(startDate.getTime())) return { error: "请选择有效的日期和时间。" };
+  if (startDate.getTime() <= Date.now()) return { error: "时间已经过去，请重新选择。" };
+  const endDate = dateFromKey(result.date, result.endHour, result.endMinute);
+  if (!endDate || Number.isNaN(endDate.getTime())) return { error: "请选择有效的结束时间。" };
+  if (endDate.getTime() <= startDate.getTime()) return { error: "结束时间要晚于开始时间。" };
+  return { startAt: startDate.toISOString(), endAt: endDate.toISOString(), label: `${formatTime(startDate.toISOString())}-${formatTime(endDate.toISOString())}` };
+}
+
 async function chooseMinutesWheel({ title, description, defaultMinutes, min = 1, max = 1440 }) {
   const selected = Math.min(Math.max(normalizeReminderMinutes(defaultMinutes), min), max);
   const input = await showInputDialog({
@@ -651,67 +595,83 @@ async function normalizeReminders() {
   const items = await loadItems();
   let changed = false;
   for (const item of items) {
+    const category = categoryFor(item);
+    const before = JSON.stringify(item);
     const minutes = reminderMinutesFor(item);
+    item.category = category;
     if (item.reminderMinutes !== minutes) {
       item.reminderMinutes = minutes;
       changed = true;
     }
-    if (!item.done && !item.paused && !item.remindAt) {
+    item.paused = category !== "interrupt";
+    if (category === "inbox") item.remindAt = "";
+    if (category === "planned" && item.calendarStartAt) item.remindAt = item.calendarStartAt;
+    if (!item.done && category === "interrupt" && !item.remindAt) {
       item.remindAt = minutesFromNow(minutes);
       changed = true;
     }
+    if (before !== JSON.stringify(item)) changed = true;
   }
   if (changed) await saveItems(items);
   await sendMessage({ type: "restore" });
 }
 
-function itemActions(item) {
-  if (item.paused) {
-    return `
-      <button data-action="resume" type="button">恢复计时</button>
-      <button class="secondary" data-action="open" type="button">打开来源</button>
-      <button class="danger" data-action="delete" type="button">删除</button>
-    `;
-  }
+function categoryFor(item) {
+  if (["interrupt", "planned", "inbox"].includes(item?.category)) return item.category;
+  if (item?.calendarStartAt) return "planned";
+  return item?.paused ? "inbox" : "interrupt";
+}
 
+function itemActions(item) {
+  const category = categoryFor(item);
+  if (category === "inbox") return `
+    <button data-action="short" type="button">设短期提醒</button>
+    <button class="secondary" data-action="plan" type="button">规划时间</button>
+    <button class="secondary" data-action="open" type="button">打开来源</button>
+    <button class="danger" data-action="delete" type="button">删除</button>`;
+  if (category === "planned") return `
+    <button data-action="done" type="button">已经完成</button>
+    <button class="secondary" data-action="plan" type="button">改时间</button>
+    <button class="secondary" data-action="inbox" type="button">待安排</button>
+    <button class="secondary" data-action="open" type="button">打开来源</button>
+    <button class="danger" data-action="delete" type="button">删除</button>`;
   return `
     <button data-action="done" type="button">回来了/完成</button>
     <button class="secondary" data-action="snooze" type="button">再等 ${reminderMinutesFor(item)} 分钟</button>
-    <button class="secondary" data-action="later" type="button">稍后提醒</button>
-    <button class="secondary" data-action="pause" type="button">暂停</button>
+    <button class="secondary" data-action="short" type="button">改时间</button>
+    <button class="secondary" data-action="inbox" type="button">待安排</button>
     <button class="secondary" data-action="open" type="button">打开来源</button>
-    <button class="danger" data-action="delete" type="button">删除</button>
-  `;
+    <button class="danger" data-action="delete" type="button">删除</button>`;
 }
 
 function itemMeta(item) {
-  if (item.paused) {
-    return `已暂停，不会提醒；恢复后按 ${reminderMinutesFor(item)} 分钟提醒`;
-  }
-  return `下次提醒：${formatTime(item.remindAt)}（${timeLeftText(item.remindAt)}，每次 ${reminderMinutesFor(item)} 分钟）`;
+  const category = categoryFor(item);
+  if (category === "inbox") return "尚未安排提醒或规划时间";
+  if (category === "planned") return item.calendarStartAt ? `规划时间：${formatTime(item.calendarStartAt)}-${formatTime(item.calendarEndAt)}` : "等待设置规划时间";
+  return `下次强提醒：${formatTime(item.remindAt)}（${timeLeftText(item.remindAt)}，每次 ${reminderMinutesFor(item)} 分钟）`;
 }
 
 async function render() {
   await normalizeReminders();
-  const items = await loadItems();
-  const activeItems = items.filter(item => !item.done && !item.paused);
-  const pausedItems = items.filter(item => !item.done && item.paused);
-  const visibleItems = [...activeItems, ...pausedItems];
-  if (!visibleItems.length) {
-    itemList.innerHTML = '<div class="empty">没有未完成中断事项。</div>';
-    return;
-  }
-
-  itemList.innerHTML = visibleItems.map(item => `
-    <article class="item ${item.paused ? "paused" : ""}" data-id="${item.id}">
+  const items = (await loadItems()).filter(item => !item.done);
+  const sections = [
+    { category: "interrupt", title: "中断任务", hint: "当天及未指定日期" },
+    { category: "planned", title: "规划任务", hint: "明天、后天或具体日期" },
+    { category: "inbox", title: "待安排", hint: "稍后手动分类" }
+  ];
+  categoryTabs.innerHTML = sections.map(section => {
+    const count = items.filter(item => categoryFor(item) === section.category).length;
+    return `<button type="button" data-category="${section.category}" class="category-tab ${selectedCategory === section.category ? "active" : ""}">${section.title}<span>${count}</span></button>`;
+  }).join("");
+  const section = sections.find(entry => entry.category === selectedCategory) || sections[0];
+  const visible = items.filter(item => categoryFor(item) === section.category);
+  itemList.innerHTML = visible.length ? visible.map(item => `
+    <article class="item ${section.category}" data-id="${item.id}">
       <p class="text">${escapeHtml(item.text)}</p>
       <div class="meta">${escapeHtml(itemMeta(item))}</div>
       <div class="meta">${escapeHtml(item.sourceTitle || item.sourceUrl || "未记录来源")}</div>
-      <div class="item-actions">
-        ${itemActions(item)}
-      </div>
-    </article>
-  `).join("");
+      <div class="item-actions">${itemActions(item)}</div>
+    </article>`).join("") : `<div class="empty">暂无${section.title}。<br><span>${section.hint}</span></div>`;
 }
 
 async function init() {
@@ -739,17 +699,22 @@ form.addEventListener("submit", async event => {
     return;
   }
   const defaultMinutes = await getDefaultReminderMinutes();
-  const reminderMinutes = normalizeReminderMinutes(command.reminderMinutes || defaultMinutes);
+  const category = command.calendarStartAt ? "planned" : "interrupt";
+  const reminderMinutes = category === "interrupt" ? normalizeReminderMinutes(command.reminderMinutes || defaultMinutes) : defaultMinutes;
+  const remindAt = category === "interrupt" ? (command.remindAt || minutesFromNow(reminderMinutes)) : (command.calendarStartAt || "");
   const item = {
     id: makeId(),
     text,
     sourceTitle: currentSource.title || "",
     sourceUrl: currentSource.url || "",
     createdAt: new Date().toISOString(),
+    category,
     reminderMinutes,
-    remindAt: command.remindAt || minutesFromNow(reminderMinutes),
+    remindAt,
+    calendarStartAt: command.calendarStartAt || "",
+    calendarEndAt: command.calendarEndAt || "",
     done: false,
-    paused: false,
+    paused: category !== "interrupt",
     pausedAt: "",
     lastRemindedAt: ""
   };
@@ -762,7 +727,9 @@ form.addEventListener("submit", async event => {
   quickText.value = "";
   voiceReminderOverride = null;
   submissionInProgress = false;
-  setStatus(`已保存在本机浏览器，将在 ${formatTime(item.remindAt)} 提醒。`, "ok");
+  updatePrimaryButton(defaultMinutes);
+  selectedCategory = category;
+  setStatus(category === "planned" ? `已创建规划任务，将在 ${command.label} 提醒。` : `已创建中断任务，将在 ${formatTime(remindAt)} 强提醒。`, "ok");
   await render();
 });
 
@@ -781,7 +748,12 @@ copyOpenBtn.addEventListener("click", async () => {
   setStatus("已复制未完成事项。", "ok");
 });
 
-voiceBtn.addEventListener("click", startVoiceInput);
+categoryTabs.addEventListener("click", event => {
+  const button = event.target.closest("[data-category]");
+  if (!button) return;
+  selectedCategory = button.dataset.category;
+  render();
+});
 
 settingsBtn.addEventListener("click", () => {
   settingsPanel.classList.toggle("open");
@@ -874,50 +846,35 @@ itemList.addEventListener("click", async event => {
     await render();
   }
 
-  if (button.dataset.action === "later") {
-    const currentMinutes = reminderMinutesFor(item);
-    const later = await chooseLaterReminder(currentMinutes);
-    if (!later) return;
-    if (later.error) {
-      setStatus(later.error, "bad");
-      return;
-    }
-    const result = await sendMessage({ type: "reschedule", id: item.id, ...later });
-    if (!result.ok) {
-      setStatus(`稍后提醒失败：${result.errorText || "后台没有响应"}`, "bad");
-      return;
-    }
-    const remindAt = result.item?.remindAt || later.remindAt || minutesFromNow(later.minutes || currentMinutes);
-    setStatus(`已改为${later.label}提醒：${formatTime(remindAt)}。`, "ok");
+  if (button.dataset.action === "inbox") {
+    const result = await sendMessage({ type: "moveToInbox", id: item.id });
+    if (!result.ok) { setStatus(`移入待安排失败：${result.errorText || "后台没有响应"}`, "bad"); return; }
+    selectedCategory = "inbox";
+    setStatus("已移入待安排。", "ok");
     await render();
   }
 
-  if (button.dataset.action === "pause") {
-    button.disabled = true;
-    button.textContent = "正在暂停...";
-    const result = await sendMessage({ type: "pause", id: item.id });
-    if (!result.ok) {
-      setStatus(`暂停失败：${result.errorText || "后台没有响应"}`, "bad");
-      button.disabled = false;
-      button.textContent = "暂停";
-      return;
-    }
-    setStatus("已暂停。", "ok");
+  if (button.dataset.action === "short") {
+    const minutes = await chooseMinutesWheel({ title: "设置短期强提醒", description: "只能设置 1–60 分钟，并按此间隔循环提醒。", defaultMinutes: reminderMinutesFor(item), min: 1, max: 60 });
+    if (minutes === null) return;
+    const result = await sendMessage({ type: "reschedule", id: item.id, minutes });
+    if (!result.ok) { setStatus(`设置短期提醒失败：${result.errorText || "后台没有响应"}`, "bad"); return; }
+    selectedCategory = "interrupt";
+    setStatus(`已设为中断任务，${minutes} 分钟后强提醒。`, "ok");
     await render();
   }
 
-  if (button.dataset.action === "resume") {
-    button.disabled = true;
-    button.textContent = "正在恢复...";
-    const result = await sendMessage({ type: "resume", id: item.id });
-    if (!result.ok) {
-      setStatus(`恢复失败：${result.errorText || "后台没有响应"}`, "bad");
-      button.disabled = false;
-      button.textContent = "恢复计时";
+  if (button.dataset.action === "plan") {
+    const planTime = await choosePlanTime();
+    if (!planTime) return;
+    if (planTime.error) {
+      setStatus(planTime.error, "bad");
       return;
     }
-    const remindAt = result.item?.remindAt || minutesFromNow(reminderMinutesFor(item));
-    setStatus(`已恢复计时，${formatTime(remindAt)} 提醒。`, "ok");
+    const result = await sendMessage({ type: "planItem", id: item.id, startAt: planTime.startAt, endAt: planTime.endAt });
+    if (!result.ok) { setStatus(`规划时间失败：${result.errorText || "后台没有响应"}`, "bad"); return; }
+    selectedCategory = "planned";
+    setStatus(`已规划时间：${planTime.label}。`, "ok");
     await render();
   }
 
@@ -926,8 +883,11 @@ itemList.addEventListener("click", async event => {
   }
 
   if (button.dataset.action === "delete") {
-    await cancelSchedule(item);
-    await saveItems(items.filter(entry => entry.id !== item.id));
+    const result = await sendMessage({ type: "deleteItem", id: item.id });
+    if (!result.ok) {
+      setStatus(`删除失败：${result.errorText || "后台没有响应"}`, "bad");
+      return;
+    }
     await render();
   }
 });

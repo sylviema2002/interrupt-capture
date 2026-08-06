@@ -36,13 +36,30 @@ function reminderMinutesFor(item) {
   return normalizeReminderMinutes(item?.reminderMinutes || DEFAULT_REMIND_MINUTES);
 }
 
+function categoryFor(item) {
+  if (["interrupt", "planned", "inbox"].includes(item?.category)) return item.category;
+  if (item?.calendarStartAt) return "planned";
+  return item?.paused ? "inbox" : "interrupt";
+}
+
+function normalizeItem(item) {
+  const category = categoryFor(item);
+  item.category = category;
+  item.reminderMinutes = reminderMinutesFor(item);
+  item.paused = category !== "interrupt";
+  if (category === "inbox") item.remindAt = "";
+  if (category === "planned" && item.calendarStartAt) item.remindAt = item.calendarStartAt;
+  if (category === "interrupt" && !item.remindAt) item.remindAt = minutesFromNow(item.reminderMinutes);
+  return item;
+}
+
 function alarmName(id) {
   return `interrupt:${id}`;
 }
 
 async function updateBadge() {
   const items = await loadItems();
-  const openCount = items.filter(item => !item.done && !item.paused).length;
+  const openCount = items.filter(item => !item.done && categoryFor(item) !== "inbox").length;
   await chrome.action.setBadgeBackgroundColor({ color: "#2864d8" });
   await chrome.action.setBadgeText({ text: openCount ? String(openCount) : "" });
 }
@@ -189,30 +206,26 @@ async function showReminder(item, immediate = false) {
 }
 
 async function scheduleItem(item) {
-  if (!item || item.done || item.paused) return;
-  const remindAt = item.remindAt ? new Date(item.remindAt).getTime() : Date.now();
-  const delayMs = Math.max(remindAt - Date.now(), 1000);
-  await chrome.alarms.create(alarmName(item.id), { when: Date.now() + delayMs });
+  if (!item || item.done || categoryFor(item) === "inbox") return;
+  const target = categoryFor(item) === "planned" ? item.calendarStartAt : item.remindAt;
+  if (!target) return;
+  const when = new Date(target).getTime();
+  if (!Number.isFinite(when)) return;
+  await chrome.alarms.create(alarmName(item.id), { when: Math.max(when, Date.now() + 1000) });
 }
 
 async function restoreSchedules() {
   const items = await loadItems();
   let changed = false;
   for (const item of items) {
-    if (item.done || item.paused) {
+    const before = JSON.stringify(item);
+    normalizeItem(item);
+    if (item.done || item.category === "inbox") {
       await chrome.alarms.clear(alarmName(item.id));
       continue;
     }
-    const minutes = reminderMinutesFor(item);
-    if (item.reminderMinutes !== minutes) {
-      item.reminderMinutes = minutes;
-      changed = true;
-    }
-    if (!item.remindAt) {
-      item.remindAt = minutesFromNow(minutes);
-      changed = true;
-    }
     await scheduleItem(item);
+    if (before !== JSON.stringify(item)) changed = true;
   }
   if (changed) await saveItems(items);
   await updateBadge();
@@ -220,7 +233,7 @@ async function restoreSchedules() {
 
 async function createItem(item) {
   const items = await loadItems();
-  const savedItem = { ...item, done: false, paused: false };
+  const savedItem = normalizeItem({ ...item, done: false });
   items.unshift(savedItem);
   await saveItems(items);
   await scheduleItem(savedItem);
@@ -253,10 +266,14 @@ async function pauseItem(id) {
   if (!item) return null;
   const pausedItem = {
     ...item,
+    category: "inbox",
     done: false,
     paused: true,
     pausedAt: new Date().toISOString(),
-    remindAt: ""
+    remindAt: "",
+    calendarStartAt: "",
+    calendarEndAt: "",
+    planningStartedAt: ""
   };
   await chrome.alarms.clear(alarmName(id));
   delete reminderWindowByItemId[id];
@@ -272,11 +289,15 @@ async function resumeItem(id) {
   const minutes = reminderMinutesFor(item);
   const resumedItem = {
     ...item,
+    category: "interrupt",
     reminderMinutes: minutes,
     done: false,
     paused: false,
     pausedAt: "",
-    remindAt: minutesFromNow(minutes)
+    remindAt: minutesFromNow(minutes),
+    calendarStartAt: "",
+    calendarEndAt: "",
+    planningStartedAt: ""
   };
   await saveItems(items.map(entry => entry.id === id ? resumedItem : entry));
   await scheduleItem(resumedItem);
@@ -290,10 +311,14 @@ async function snoozeItem(id) {
   if (!item) return null;
   const minutes = reminderMinutesFor(item);
   item.reminderMinutes = minutes;
+  item.category = "interrupt";
   item.done = false;
   item.paused = false;
   item.pausedAt = "";
   item.remindAt = minutesFromNow(minutes);
+  item.calendarStartAt = "";
+  item.calendarEndAt = "";
+  item.planningStartedAt = "";
   await saveItems(items);
   await scheduleItem(item);
   delete reminderWindowByItemId[id];
@@ -314,9 +339,13 @@ async function rescheduleItem(id, minutesValue, remindAtValue = "") {
     ...item,
     reminderMinutes: remindAtValue ? reminderMinutesFor(item) : minutes,
     done: false,
+    category: "interrupt",
     paused: false,
     pausedAt: "",
-    remindAt
+    remindAt,
+    calendarStartAt: "",
+    calendarEndAt: "",
+    planningStartedAt: ""
   };
   await saveItems(items.map(entry => entry.id === id ? updatedItem : entry));
   await scheduleItem(updatedItem);
@@ -324,13 +353,81 @@ async function rescheduleItem(id, minutesValue, remindAtValue = "") {
   return updatedItem;
 }
 
+async function moveToInbox(id) {
+  const items = await loadItems();
+  const item = items.find(entry => entry.id === id);
+  if (!item) return null;
+  const updatedItem = {
+    ...item,
+    category: "inbox",
+    done: false,
+    paused: true,
+    pausedAt: new Date().toISOString(),
+    remindAt: "",
+    calendarStartAt: "",
+    calendarEndAt: "",
+    planningStartedAt: ""
+  };
+  await chrome.alarms.clear(alarmName(id));
+  delete reminderWindowByItemId[id];
+  await saveItems(items.map(entry => entry.id === id ? updatedItem : entry));
+  await updateBadge();
+  return updatedItem;
+}
+
+async function planItem(id, startAt, endAt) {
+  const items = await loadItems();
+  const item = items.find(entry => entry.id === id);
+  if (!item) return null;
+  const startDate = new Date(startAt);
+  const endDate = new Date(endAt);
+  if (!Number.isFinite(startDate.getTime()) || startDate.getTime() <= Date.now()) {
+    throw new Error("规划开始时间无效或已经过去。");
+  }
+  if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+    throw new Error("规划结束时间要晚于开始时间。");
+  }
+  const updatedItem = {
+    ...item,
+    category: "planned",
+    done: false,
+    paused: true,
+    pausedAt: "",
+    remindAt: startDate.toISOString(),
+    calendarStartAt: startDate.toISOString(),
+    calendarEndAt: endDate.toISOString(),
+    planningStartedAt: ""
+  };
+  await saveItems(items.map(entry => entry.id === id ? updatedItem : entry));
+  await scheduleItem(updatedItem);
+  await updateBadge();
+  return updatedItem;
+}
+
+async function deleteItem(id) {
+  const items = await loadItems();
+  const item = items.find(entry => entry.id === id);
+  if (!item) return null;
+  await chrome.alarms.clear(alarmName(id));
+  delete reminderWindowByItemId[id];
+  await saveItems(items.filter(entry => entry.id !== id));
+  await updateBadge();
+  return item;
+}
+
 async function handleDueItem(id) {
   const items = await loadItems();
   const item = items.find(entry => entry.id === id);
-  if (!item || item.done || item.paused) return;
+  if (!item || item.done || categoryFor(item) === "inbox") return;
 
   await showReminder(item);
   item.lastRemindedAt = new Date().toISOString();
+  if (categoryFor(item) === "planned") {
+    item.planningStartedAt = item.lastRemindedAt;
+    item.remindAt = "";
+    await saveItems(items);
+    return;
+  }
   item.reminderMinutes = reminderMinutesFor(item);
   item.remindAt = minutesFromNow(item.reminderMinutes);
   await saveItems(items);
@@ -351,13 +448,19 @@ function formatExportTime(value) {
 function exportText(items) {
   if (!items.length) return "暂无中断快记记录。";
   return items.map((item, index) => {
-    const status = item.done ? "已完成" : item.paused ? "暂停" : "未完成";
+    const category = categoryFor(item);
+    const status = item.done ? "已完成" : category === "planned" ? "规划任务" : category === "inbox" ? "待安排" : "中断任务";
     const source = item.sourceTitle || item.sourceUrl || "未记录来源";
     const lines = [
       `${index + 1}. [${status}] ${item.text}`,
       `记录时间：${formatExportTime(item.createdAt) || "未记录"}`,
       `来源：${source}`
     ];
+    if (category === "planned" && item.calendarStartAt) {
+      const startText = formatExportTime(item.calendarStartAt);
+      const endText = formatExportTime(item.calendarEndAt);
+      lines.push(`规划时间：${startText}${endText ? ` - ${endText}` : ""}`);
+    }
     if (item.completedAt) lines.push(`完成时间：${formatExportTime(item.completedAt)}`);
     return lines.join("\n");
   }).join("\n\n");
@@ -465,6 +568,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message?.type === "resume" && message.id) {
         const item = await resumeItem(message.id);
+        sendResponse({ ok: true, item });
+        return;
+      }
+
+      if (message?.type === "moveToInbox" && message.id) {
+        const item = await moveToInbox(message.id);
+        sendResponse({ ok: true, item });
+        return;
+      }
+
+      if (message?.type === "planItem" && message.id) {
+        const item = await planItem(message.id, message.startAt, message.endAt);
+        sendResponse({ ok: true, item });
+        return;
+      }
+
+      if (message?.type === "deleteItem" && message.id) {
+        const item = await deleteItem(message.id);
         sendResponse({ ok: true, item });
         return;
       }
