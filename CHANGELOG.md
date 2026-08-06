@@ -4,7 +4,8 @@
 
 - 没有时间词的普通文本停顿约 1.5 秒后，也会按默认分钟数自动创建中断任务，不再需要手动点击默认提醒按钮。
 - 带时间任务继续保持约 0.8 秒自动创建。
-- 对外飞书同步版安装包更新为 `interrupt-capture-feishu-cli-v1.0.4.zip`。
+- 本地版版本号同步到 1.0.4，两个对外安装包使用同一版本号。
+- 对外安装包更新为 `interrupt-capture-feishu-cli-v1.0.4.zip` 和 `interrupt-capture-local-only-v1.0.4.zip`。
 
 ## 1.0.3
 
