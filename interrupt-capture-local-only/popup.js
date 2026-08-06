@@ -24,6 +24,138 @@ const cleanupCompletedBtn = document.querySelector("#cleanupCompletedBtn");
 const feedbackBtn = document.querySelector("#feedbackBtn");
 let currentSource = { title: "", url: "" };
 let activeRecognition = null;
+let voiceReminderOverride = null;
+let textCommandParseTimer = null;
+let submissionInProgress = false;
+
+function chineseNumber(value) {
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) return Number.parseInt(text, 10);
+  if (text === "半") return 30;
+  const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  if (text === "十") return 10;
+  if (text.includes("十")) {
+    const [left, right] = text.split("十");
+    return (left ? digits[left] : 1) * 10 + (right ? digits[right] : 0);
+  }
+  return digits[text] ?? Number.NaN;
+}
+
+function cleanVoiceItemText(value) {
+  return String(value || "")
+    .replace(/^[，,。；;\s]+|[，,。；;\s]+$/g, "")
+    .replace(/^提醒我(?:要)?/, "")
+    .replace(/(?:请)?提醒(?:我)?$/, "")
+    .replace(/^[，,。；;\s]+|[，,。；;\s]+$/g, "")
+    .trim();
+}
+
+function voiceHour(value, period = "") {
+  let hour = chineseNumber(value);
+  if (["下午", "晚上"].includes(period) && hour < 12) hour += 12;
+  if (period === "中午" && hour < 11) hour += 12;
+  return hour;
+}
+
+function voiceDate({ dayWord = "", month = 0, day = 0, hour, minute }) {
+  const target = new Date();
+  target.setSeconds(0, 0);
+  if (month && day) {
+    target.setMonth(month - 1, day);
+    target.setHours(hour, minute, 0, 0);
+    if (target.getTime() <= Date.now()) target.setFullYear(target.getFullYear() + 1);
+  } else {
+    target.setHours(hour, minute, 0, 0);
+    if (dayWord === "明天") target.setDate(target.getDate() + 1);
+    if (dayWord === "后天") target.setDate(target.getDate() + 2);
+    if (!dayWord && target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+  }
+  return target;
+}
+
+function parseVoiceCommand(transcript) {
+  const source = String(transcript || "").trim();
+  const num = "(\\d{1,2}|[零〇一二两三四五六七八九十]+)";
+  const min = "(半|\\d{1,2}|[零〇一二两三四五六七八九十]+)?";
+  const range = source.match(new RegExp("^(?:(今天|明天|后天)|(?:(\\d{1,2})月(\\d{1,2})(?:日|号)))\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?\\s*(?:到|至|-)\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?[，,。；;\\s]*(.+)$"));
+  if (range) {
+    const firstPeriod = range[4] || "";
+    const start = voiceDate({ dayWord: range[1] || "", month: Number(range[2] || 0), day: Number(range[3] || 0), hour: voiceHour(range[5], firstPeriod), minute: range[6] ? chineseNumber(range[6]) : 0 });
+    const end = new Date(start);
+    end.setHours(voiceHour(range[8], range[7] || firstPeriod), range[9] ? chineseNumber(range[9]) : 0, 0, 0);
+    if (end > start && range[10].trim()) {
+      const text = cleanVoiceItemText(range[10]);
+      return { text, remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
+    }
+  }
+  const prefixRange = source.match(new RegExp("^(.+?)[，,。；;\\s]+(?:(今天|明天|后天)|(?:(\\d{1,2})月(\\d{1,2})(?:日|号)))\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?\\s*(?:到|至|-)\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?[。！？.!?]*$"));
+  if (prefixRange) {
+    const firstPeriod = prefixRange[5] || "";
+    const start = voiceDate({ dayWord: prefixRange[2] || "", month: Number(prefixRange[3] || 0), day: Number(prefixRange[4] || 0), hour: voiceHour(prefixRange[6], firstPeriod), minute: prefixRange[7] ? chineseNumber(prefixRange[7]) : 0 });
+    const end = new Date(start);
+    end.setHours(voiceHour(prefixRange[9], prefixRange[8] || firstPeriod), prefixRange[10] ? chineseNumber(prefixRange[10]) : 0, 0, 0);
+    const text = cleanVoiceItemText(prefixRange[1]);
+    if (end > start && text) return { text, remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
+  }
+  if (/(?:点|时|:|：).*?(?:到|至|-)\s*/.test(source)) {
+    return { text: source, awaitingMoreText: true };
+  }
+  const relative = source.match(/(\d+|[零〇一二两三四五六七八九十]+)\s*(分钟|分|小时|个小时)\s*后/);
+  if (relative) {
+    const amount = chineseNumber(relative[1]);
+    const minutes = relative[2].includes("小时") ? amount * 60 : amount;
+    const text = cleanVoiceItemText(source.slice(0, relative.index) + source.slice(relative.index + relative[0].length));
+    if (Number.isFinite(minutes) && minutes > 0 && minutes <= 10080) {
+      return { text, reminderMinutes: minutes, remindAt: minutesFromNow(minutes), label: minutes + " 分钟后" };
+    }
+  }
+  const dated = source.match(/(\d{1,2})月(\d{1,2})(?:日|号)\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?/);
+  if (dated) {
+    const target = voiceDate({ month: Number(dated[1]), day: Number(dated[2]), hour: voiceHour(dated[4], dated[3] || ""), minute: dated[5] ? chineseNumber(dated[5]) : 0 });
+    return { text: cleanVoiceItemText(source.slice(0, dated.index) + source.slice(dated.index + dated[0].length)), remindAt: target.toISOString(), label: formatTime(target) };
+  }
+  const timeFirst = source.match(/^(今天|明天|后天)?\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?(?:提醒(?:我)?)?[，,。；;\s]*(.+)$/);
+  if (timeFirst) {
+    const target = voiceDate({ dayWord: timeFirst[1] || "", hour: voiceHour(timeFirst[3], timeFirst[2] || ""), minute: timeFirst[4] ? chineseNumber(timeFirst[4]) : 0 });
+    return { text: cleanVoiceItemText(timeFirst[5]), remindAt: target.toISOString(), label: formatTime(target) };
+  }
+  const absolute = source.match(/^(.*?)[，,。；;\s]*(今天|明天|后天)?\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?(?:提醒(?:我)?)?[。！？.!?]*$/);
+  if (absolute) {
+    const target = voiceDate({ dayWord: absolute[2] || "", hour: voiceHour(absolute[4], absolute[3] || ""), minute: absolute[5] ? chineseNumber(absolute[5]) : 0 });
+    return { text: cleanVoiceItemText(absolute[1]), remindAt: target.toISOString(), label: formatTime(target) };
+  }
+  return { text: source };
+}
+
+function scheduleTextCommandParse() {
+  window.clearTimeout(textCommandParseTimer);
+  textCommandParseTimer = window.setTimeout(() => {
+    if (submissionInProgress) return;
+    const rawText = quickText.value.trim();
+    if (!rawText) return;
+    const command = parseVoiceCommand(rawText);
+    if (command.awaitingMoreText) {
+      setStatus("已识别时间段，请继续说事项，例如：写汇报。", "");
+      return;
+    }
+    if (!command.text) return;
+    if (!command.remindAt) {
+      const plainText = command.text;
+      setStatus("未识别到时间，将按默认时间自动创建中断任务…", "");
+      textCommandParseTimer = window.setTimeout(() => {
+        if (submissionInProgress || quickText.value.trim() !== plainText) return;
+        quickText.value = plainText;
+        voiceReminderOverride = { text: plainText, label: "默认时间" };
+        form.requestSubmit();
+      }, 700);
+      return;
+    }
+    quickText.value = command.text;
+    voiceReminderOverride = command;
+    setStatus(`已识别提醒：${command.label}，正在自动保存…`, "ok");
+    form.requestSubmit();
+  }, 800);
+}
 
 function makeId() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -135,7 +267,7 @@ function startVoiceInput() {
   recognition.onstart = () => {
     voiceBtn.classList.add("listening");
     voiceBtn.textContent = "听写中";
-    setStatus("正在听，你可以直接说：回来先做什么。", "");
+    setStatus("正在听，你可以直接说：10 分钟后看合同，或明天 9 点写日报。", "");
   };
 
   recognition.onresult = event => {
@@ -144,7 +276,7 @@ function startVoiceInput() {
       .join("")
       .trim();
     appendRecognizedText(transcript);
-    setStatus(transcript ? "已把语音填进输入框。确认后点“记一下”。" : "没有识别到内容，可以再说一次。", transcript ? "ok" : "");
+    setStatus(transcript ? "已识别语音，正在判断提醒时间…" : "没有识别到内容，可以再说一次。", transcript ? "ok" : "");
   };
 
   recognition.onerror = event => {
@@ -597,17 +729,25 @@ async function init() {
 
 form.addEventListener("submit", async event => {
   event.preventDefault();
-  const text = quickText.value.trim();
-  if (!text) return;
+  if (submissionInProgress) return;
+  submissionInProgress = true;
+  window.clearTimeout(textCommandParseTimer);
+  const command = voiceReminderOverride || {};
+  const text = (command.text || quickText.value).trim();
+  if (!text) {
+    submissionInProgress = false;
+    return;
+  }
   const defaultMinutes = await getDefaultReminderMinutes();
+  const reminderMinutes = normalizeReminderMinutes(command.reminderMinutes || defaultMinutes);
   const item = {
     id: makeId(),
     text,
     sourceTitle: currentSource.title || "",
     sourceUrl: currentSource.url || "",
     createdAt: new Date().toISOString(),
-    reminderMinutes: defaultMinutes,
-    remindAt: minutesFromNow(defaultMinutes),
+    reminderMinutes,
+    remindAt: command.remindAt || minutesFromNow(reminderMinutes),
     done: false,
     paused: false,
     pausedAt: "",
@@ -615,13 +755,18 @@ form.addEventListener("submit", async event => {
   };
   const result = await sendMessage({ type: "createItem", item });
   if (!result.ok) {
+    submissionInProgress = false;
     setStatus(`保存失败：${result.errorText || "请重新加载插件后再试"}`, "bad");
     return;
   }
   quickText.value = "";
-  setStatus("已保存在本机浏览器，并加入提醒。", "ok");
+  voiceReminderOverride = null;
+  submissionInProgress = false;
+  setStatus(`已保存在本机浏览器，将在 ${formatTime(item.remindAt)} 提醒。`, "ok");
   await render();
 });
+
+quickText.addEventListener("input", scheduleTextCommandParse);
 
 quickText.addEventListener("keydown", event => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
