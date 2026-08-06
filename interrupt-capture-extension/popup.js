@@ -105,7 +105,7 @@ function parseVoiceCommand(transcript) {
   }
   // Voice input arrives incrementally. Once a range connector appears, never let
   // the single-time parser submit the unfinished first half of the sentence.
-  if (/(?:点|时|:|：).*?(?:到|至|-)s*/.test(source)) {
+  if (/(?:点|时|:|：).*?(?:到|至|-)\s*/.test(source)) {
     return { text: source, awaitingCalendarText: true };
   }
   const relative = source.match(/(\d+|[零〇一二两三四五六七八九十]+)\s*(分钟|分|小时|个小时)\s*后/);

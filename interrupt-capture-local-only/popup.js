@@ -85,7 +85,10 @@ function parseVoiceCommand(transcript) {
     end.setHours(voiceHour(range[8], range[7] || firstPeriod), range[9] ? chineseNumber(range[9]) : 0, 0, 0);
     if (end > start && range[10].trim()) {
       const text = cleanVoiceItemText(range[10]);
-      return { text, remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
+      const isFutureDate = ["明天", "后天"].includes(range[1]) || Boolean(range[2] && range[3]);
+      return isFutureDate
+        ? { text, category: "planned", calendarStartAt: start.toISOString(), calendarEndAt: end.toISOString(), label: formatTime(start) + "-" + formatTime(end) }
+        : { text, category: "interrupt", remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
     }
   }
   const prefixRange = source.match(new RegExp("^(.+?)[，,。；;\\s]+(?:(今天|明天|后天)|(?:(\\d{1,2})月(\\d{1,2})(?:日|号)))\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?\\s*(?:到|至|-)\\s*(早上|上午|中午|下午|晚上)?\\s*" + num + "\\s*(?:点|时|:|：)\\s*" + min + "\\s*分?[。！？.!?]*$"));
@@ -95,7 +98,12 @@ function parseVoiceCommand(transcript) {
     const end = new Date(start);
     end.setHours(voiceHour(prefixRange[9], prefixRange[8] || firstPeriod), prefixRange[10] ? chineseNumber(prefixRange[10]) : 0, 0, 0);
     const text = cleanVoiceItemText(prefixRange[1]);
-    if (end > start && text) return { text, remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
+    if (end > start && text) {
+      const isFutureDate = ["明天", "后天"].includes(prefixRange[2]) || Boolean(prefixRange[3] && prefixRange[4]);
+      return isFutureDate
+        ? { text, category: "planned", calendarStartAt: start.toISOString(), calendarEndAt: end.toISOString(), label: formatTime(start) + "-" + formatTime(end) }
+        : { text, category: "interrupt", remindAt: start.toISOString(), label: formatTime(start) + "-" + formatTime(end) };
+    }
   }
   if (/(?:点|时|:|：).*?(?:到|至|-)\s*/.test(source)) {
     return { text: source, awaitingMoreText: true };
@@ -112,17 +120,23 @@ function parseVoiceCommand(transcript) {
   const dated = source.match(/(\d{1,2})月(\d{1,2})(?:日|号)\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?/);
   if (dated) {
     const target = voiceDate({ month: Number(dated[1]), day: Number(dated[2]), hour: voiceHour(dated[4], dated[3] || ""), minute: dated[5] ? chineseNumber(dated[5]) : 0 });
-    return { text: cleanVoiceItemText(source.slice(0, dated.index) + source.slice(dated.index + dated[0].length)), remindAt: target.toISOString(), label: formatTime(target) };
+    return { text: cleanVoiceItemText(source.slice(0, dated.index) + source.slice(dated.index + dated[0].length)), category: "planned", calendarStartAt: target.toISOString(), calendarEndAt: new Date(target.getTime() + 30 * 60000).toISOString(), label: formatTime(target) };
   }
   const timeFirst = source.match(/^(今天|明天|后天)?\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?(?:提醒(?:我)?)?[，,。；;\s]*(.+)$/);
   if (timeFirst) {
     const target = voiceDate({ dayWord: timeFirst[1] || "", hour: voiceHour(timeFirst[3], timeFirst[2] || ""), minute: timeFirst[4] ? chineseNumber(timeFirst[4]) : 0 });
-    return { text: cleanVoiceItemText(timeFirst[5]), remindAt: target.toISOString(), label: formatTime(target) };
+    const text = cleanVoiceItemText(timeFirst[5]);
+    return ["明天", "后天"].includes(timeFirst[1])
+      ? { text, category: "planned", calendarStartAt: target.toISOString(), calendarEndAt: new Date(target.getTime() + 30 * 60000).toISOString(), label: formatTime(target) }
+      : { text, category: "interrupt", remindAt: target.toISOString(), label: formatTime(target) };
   }
   const absolute = source.match(/^(.*?)[，,。；;\s]*(今天|明天|后天)?\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2}|[零〇一二两三四五六七八九十]+)\s*(?:点|时|:|：)\s*(半|\d{1,2}|[零〇一二两三四五六七八九十]+)?\s*分?(?:提醒(?:我)?)?[。！？.!?]*$/);
   if (absolute) {
     const target = voiceDate({ dayWord: absolute[2] || "", hour: voiceHour(absolute[4], absolute[3] || ""), minute: absolute[5] ? chineseNumber(absolute[5]) : 0 });
-    return { text: cleanVoiceItemText(absolute[1]), remindAt: target.toISOString(), label: formatTime(target) };
+    const text = cleanVoiceItemText(absolute[1]);
+    return ["明天", "后天"].includes(absolute[2])
+      ? { text, category: "planned", calendarStartAt: target.toISOString(), calendarEndAt: new Date(target.getTime() + 30 * 60000).toISOString(), label: formatTime(target) }
+      : { text, category: "interrupt", remindAt: target.toISOString(), label: formatTime(target) };
   }
   return { text: source };
 }
