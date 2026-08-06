@@ -109,7 +109,7 @@ async function syncHealthRequest() {
 async function ensureCalendarServiceReady() {
   const health = await syncHealthRequest();
   if (!health.features?.calendarEvents || compareVersions(health.serviceVersion, MIN_CALENDAR_SERVICE_VERSION) < 0) {
-    throw new Error("本机同步服务还是旧版。请关闭旧的同步服务窗口，重新双击 start-sync-service.cmd 后再试。");
+    throw new Error("本机同步服务还是旧版。请关闭旧的同步服务窗口，重新启动本机辅助程序后再试。");
   }
   return health;
 }

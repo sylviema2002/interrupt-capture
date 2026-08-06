@@ -7,11 +7,11 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = Number(process.env.INTERRUPT_CAPTURE_PORT || 8766);
-const SERVICE_VERSION = "1.0.3";
+const SERVICE_VERSION = "1.0.5";
 const TEMP_DIR = path.join(__dirname, ".sync-tmp");
 const CONFIG_PATH = path.join(__dirname, "sync-config.json");
 const CONFIG_EXAMPLE_PATH = path.join(__dirname, "sync-config.example.json");
-const NODE_DIR = "C:\\Program Files\\nodejs";
+const WINDOWS_NODE_DIR = "C:\\Program Files\\nodejs";
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
@@ -99,7 +99,7 @@ function resolveLarkCommand() {
   const command = config.larkCliPath || "lark-cli";
   if (process.platform === "win32" && command.toLowerCase().endsWith(".cmd")) {
     const cliScript = path.join(path.dirname(command), "node_modules", "@larksuite", "cli", "scripts", "run.js");
-    const nodePath = path.join(NODE_DIR, "node.exe");
+    const nodePath = path.join(WINDOWS_NODE_DIR, "node.exe");
     if (fs.existsSync(cliScript) && fs.existsSync(nodePath)) {
       return { file: nodePath, argsPrefix: [cliScript] };
     }
@@ -114,9 +114,13 @@ function runLark(args) {
     const finalArgs = [...command.argsPrefix, ...args];
 
     const env = { ...process.env };
-    if (process.platform === "win32" && fs.existsSync(path.join(NODE_DIR, "node.exe"))) {
-      env.Path = `${NODE_DIR};${env.Path || env.PATH || ""}`;
+    if (process.platform === "win32" && fs.existsSync(path.join(WINDOWS_NODE_DIR, "node.exe"))) {
+      env.Path = `${WINDOWS_NODE_DIR};${env.Path || env.PATH || ""}`;
       env.PATH = env.Path;
+    } else if (process.platform === "darwin") {
+      const macPath = ["/opt/homebrew/bin", "/usr/local/bin", env.PATH || env.Path || ""].filter(Boolean).join(":");
+      env.PATH = macPath;
+      env.Path = macPath;
     }
 
     execFile(command.file, finalArgs, { cwd: __dirname, windowsHide: true, env }, (error, stdout, stderr) => {

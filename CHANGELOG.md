@@ -1,5 +1,12 @@
 # 中断快记版本更新记录
 
+## 1.0.5
+
+- 新增 macOS 本机辅助程序：`start-sync-service.command`、`mac-sync-service.js` 和 `mac-topmost-helper.js`。
+- macOS 可托管飞书同步服务，并持续把提醒窗口拉到前台，尽量接近 Windows 的置顶提醒体验。
+- 同步服务启动时会补充 Homebrew 常见路径，减少从 Finder 启动时找不到 `node` 或 `lark-cli` 的概率。
+- 公开安装包继续只包含飞书同步版，不包含个人 `sync-config.json`。
+
 ## 1.0.4
 
 - 没有时间词的普通文本停顿约 1.5 秒后，也会按默认分钟数自动创建中断任务，不再需要手动点击默认提醒按钮。
