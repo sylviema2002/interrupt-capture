@@ -26,9 +26,9 @@ npm-tmp/
 # Release packaging scope
 dist/*
 !dist/interrupt-capture-feishu-cli.zip
-!dist/interrupt-capture-local-only.zip
 release-archive/
 incoming/
+
 
 # Generated presentation/story artifacts
 .pptx-build/
