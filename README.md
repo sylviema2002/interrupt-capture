@@ -15,7 +15,6 @@
 - 没有跨日信息时，默认归入中断任务，按设定间隔循环强提醒。
 - 明确说出“明天”“后天”或具体日期时，归入规划任务，并创建飞书日程。
 - 支持自然语言时间点和时间段，例如“明天九点半汇报”“8 月 9 日 10 点到 11 点整理周报”。
-- 语音输入可配合 Windows `Win + H` 使用；文本完整后自动识别时间并写入。
 - Windows 本机辅助程序会托管飞书同步服务，并让提醒窗口尽量置顶。
 - 任务可完成、稍后提醒、暂停、恢复、转入待安排、加入或更改飞书日程。
 - 删除已关联日程的任务时，会同步删除飞书日程，并把飞书表格状态改为“已删除”。
@@ -41,7 +40,7 @@ dist/
 
 ```text
 请帮我从这个 GitHub 项目安装并配置“中断快记”浏览器插件：https://github.com/sylviema2002/interrupt-capture 。
-请保留我的 sync-config.json，不要覆盖、删除或上传它。
+请根据 README 和示例配置创建 sync-config.json，并注意不要上传或公开我的个人配置。
 ```
 
 需要准备：
@@ -52,17 +51,6 @@ dist/
 - `interrupt-capture-extension/sync-config.json`
 
 `sync-config.json` 请从 `sync-config.example.json` 复制生成，不要直接改名覆盖示例文件。里面的 `baseToken` 是飞书多维表格文件编号，`tableId` 是具体表格编号，`serviceToken` 是插件和本机同步服务之间的本地口令。
-
-## 手动安装
-
-1. 解压 `dist/interrupt-capture-feishu-cli.zip`。
-2. 安装 Node.js 和 lark-cli，并完成飞书账号登录。
-3. 复制 `interrupt-capture-extension/sync-config.example.json`，在同一文件夹里生成 `sync-config.json`。
-4. 填好 `baseToken`、`tableId` 和 `serviceToken`。
-5. 双击 `start-sync-service.cmd`，保持同步服务窗口打开。
-6. 打开 Chrome 或 Edge 扩展程序页面，开启“开发者模式”。
-7. 点击“加载已解压的扩展程序”，选择 `interrupt-capture-extension` 文件夹。
-8. 点插件图标，先点“测试提醒”。
 
 ## 飞书字段
 
@@ -79,12 +67,6 @@ dist/
 - 日程开始时间
 - 日程结束时间
 - 日程状态
-
-## 更新方式
-
-开发者模式安装的浏览器插件不会自动从 GitHub 或飞书附件更新。已安装用户需要下载新版安装包，替换本地插件文件夹后，在 Chrome 或 Edge 扩展程序页面点击“重新加载”。
-
-如果是用 AI 助手配置的，可以直接让 AI 从 GitHub 更新，但要提醒它保留 `sync-config.json`。
 
 ## 数据和隐私
 
