@@ -180,7 +180,7 @@
 
     .actions {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-top: 8px;
       align-items: center;
@@ -426,6 +426,19 @@
       gap: 8px;
       margin-top: 10px;
     }
+
+    .category-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 10px; }
+    .category-tab { min-height: 42px; padding: 7px 4px; background: #eef2ff; color: var(--muted); font-size: 13px; font-weight: 600; }
+    .category-tab span { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 4px; padding: 0 5px; border-radius: 9px; background: rgba(255,255,255,.75); font-size: 11px; }
+    .category-tab.active { background: var(--primary); color: #fff; box-shadow: 0 3px 9px rgba(31,95,215,.2); }
+    .category-tab.active span { color: var(--primary-dark); }
+    .task-section { display: grid; gap: 7px; }
+    .task-section > header { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 2px 0; }
+    .task-section > header strong { font-size: 14px; }
+    .task-section > header span, .section-empty { color: var(--muted); font-size: 11px; }
+    .section-empty { padding: 9px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.65); }
+    .item.planned { border-left-color: #7b61ff; background: #faf8ff; }
+    .item.inbox { border-left-color: #8f959e; background: #fafafa; }
   </style>
 </head>
 <body>
@@ -435,7 +448,7 @@
   </div>
   <section class="settings" id="settingsPanel">
     <div class="settings-row">
-      <label for="defaultMinutes">默认提醒时间（分钟）</label>
+      <label for="defaultMinutes">中断任务默认提醒间隔（分钟）</label>
       <input id="defaultMinutes" type="number" min="1" max="1440" step="1">
       <button class="secondary" id="saveSettingsBtn" type="button">保存</button>
     </div>
@@ -448,12 +461,12 @@
     <textarea id="quickText" placeholder="一句话写到哪了，回来先做什么" autofocus required></textarea>
     <div class="actions">
       <button class="primary" id="primarySubmitBtn" type="submit">记一下，15 分钟后提醒</button>
-      <button class="secondary" id="voiceBtn" type="button">语音说</button>
       <button class="secondary" id="copyOpenBtn" type="button">复制未完成</button>
       <button class="secondary" id="testBtn" type="button">测试提醒</button>
     </div>
     <div class="status" id="statusText">先点“测试提醒”，这里会显示检测结果。</div>
   </form>
+  <nav class="category-tabs" id="categoryTabs" aria-label="任务分类"></nav>
   <section class="list" id="itemList"></section>
   <script src="popup.js"></script>
 </body>

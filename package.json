@@ -1,12 +1,12 @@
 {
   "name": "interrupt-capture",
-  "version": "0.8.6",
+  "version": "1.0.4",
   "private": false,
-  "description": "A lightweight Chrome extension for capturing interrupted work and syncing it to Feishu Base.",
+  "description": "A lightweight browser extension for interrupted work capture, Feishu Base sync, and Feishu Calendar planning.",
   "author": "马骁艺",
   "license": "MIT",
   "scripts": {
     "start:sync": "node interrupt-capture-extension/feishu-sync-service.js",
-    "check": "node --check interrupt-capture-extension/background.js && node --check interrupt-capture-extension/popup.js && node --check interrupt-capture-extension/reminder.js && node --check interrupt-capture-extension/feishu-sync-service.js && node --check interrupt-capture-local-only/background.js && node --check interrupt-capture-local-only/popup.js && node --check interrupt-capture-local-only/reminder.js"
+    "check": "node --check interrupt-capture-extension/background.js && node --check interrupt-capture-extension/popup.js && node --check interrupt-capture-extension/reminder.js && node --check interrupt-capture-extension/feishu-sync-service.js && node --check interrupt-capture-extension/windows-sync-service-v3.js && node --check interrupt-capture-local-only/background.js && node --check interrupt-capture-local-only/popup.js && node --check interrupt-capture-local-only/reminder.js"
   }
 }

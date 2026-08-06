@@ -7,14 +7,14 @@ if errorlevel 1 (
     set "NODE_EXE=C:\Program Files\nodejs\node.exe"
   ) else (
     echo Cannot find Node.js.
-    echo Please install Node.js, or add node.exe to PATH.
+    echo Please install Node.js, or ask your AI assistant to configure a Node.js runtime.
     pause
     exit /b 1
   )
 )
-"%NODE_EXE%" feishu-sync-service.js
+"%NODE_EXE%" windows-sync-service-v3.js
 if errorlevel 1 (
   echo.
-  echo Sync service stopped with an error.
+  echo Interrupt Capture helper stopped with an error.
   pause
 )

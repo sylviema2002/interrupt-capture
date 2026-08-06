@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = Number(process.env.INTERRUPT_CAPTURE_PORT || 8766);
-const SERVICE_VERSION = "0.8.4";
+const SERVICE_VERSION = "1.0.3";
 const TEMP_DIR = path.join(__dirname, ".sync-tmp");
 const CONFIG_PATH = path.join(__dirname, "sync-config.json");
 const CONFIG_EXAMPLE_PATH = path.join(__dirname, "sync-config.example.json");
@@ -170,6 +170,7 @@ function recordPayload(item, status) {
     "来源标题": item.sourceTitle || "",
     "来源链接": item.sourceUrl || "",
     "状态": status,
+    "任务类型": ({ interrupt: "中断任务", planned: "规划任务", inbox: "待安排" })[item.category] || "中断任务",
     "记录时间": formatDate(item.createdAt),
     "插件记录ID": item.id || ""
   };
@@ -210,7 +211,7 @@ function eventEndTimestamp(event) {
 }
 
 async function ensureScheduleFields(payload) {
-  if (scheduleFieldsReady || !("日程开始时间" in payload || "日程结束时间" in payload || "日程状态" in payload)) {
+  if (scheduleFieldsReady || !("日程开始时间" in payload || "日程结束时间" in payload || "日程状态" in payload || "任务类型" in payload)) {
     return;
   }
 
@@ -231,7 +232,8 @@ async function ensureScheduleFields(payload) {
   const missingFields = [
     { name: "日程开始时间", type: "datetime", style: { format: "yyyy-MM-dd HH:mm" } },
     { name: "日程结束时间", type: "datetime", style: { format: "yyyy-MM-dd HH:mm" } },
-    { name: "日程状态", type: "text" }
+    { name: "日程状态", type: "text" },
+    { name: "任务类型", type: "text" }
   ].filter(field => !existingNames.has(field.name));
 
   for (const field of missingFields) {
@@ -295,12 +297,21 @@ async function upsertRecord(item, status) {
     args.push("--record-id", recordId);
   }
 
-  const result = await runLarkWithJson(args, payload, [
+  const writeRecord = () => runLarkWithJson(args, payload, [
     "--as",
     "user",
     "--format",
     "json"
   ]);
+  let result;
+  try {
+    result = await writeRecord();
+  } catch (error) {
+    if (!String(error?.message || error).includes("800030201")) throw error;
+    scheduleFieldsReady = false;
+    await ensureScheduleFields(payload);
+    result = await writeRecord();
+  }
   const record = result?.data?.record || result?.record || result?.data;
   return { result, recordId: record?.record_id || record?.id || recordId || await findRecordId(item.id) };
 }
@@ -386,23 +397,30 @@ async function deleteCalendarEvent(item) {
   if (!eventId) {
     return { skipped: true, reason: "Missing calendar event id." };
   }
-  const result = await runLark([
-    "calendar",
-    "events",
-    "delete",
-    "--calendar-id",
-    item.calendarId || "primary",
-    "--event-id",
-    eventId,
-    "--need-notification",
-    "false",
-    "--as",
-    "user",
-    "--format",
-    "json"
-  ]);
-
-  return { result, eventId };
+  try {
+    const result = await runLark([
+      "calendar",
+      "events",
+      "delete",
+      "--calendar-id",
+      item.calendarId || "primary",
+      "--event-id",
+      eventId,
+      "--need-notification",
+      "false",
+      "--as",
+      "user",
+      "--format",
+      "json"
+    ]);
+    return { result, eventId };
+  } catch (error) {
+    const detail = String(error?.message || error);
+    if (detail.includes("193003") || /event is deleted/i.test(detail) || /event.*not found/i.test(detail)) {
+      return { eventId, alreadyDeleted: true };
+    }
+    throw error;
+  }
 }
 
 async function checkCalendarEvent(item) {

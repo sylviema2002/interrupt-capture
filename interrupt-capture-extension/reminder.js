@@ -334,7 +334,12 @@ function render() {
     return;
   }
 
-  headingEl.textContent = "该回来了";
+  headingEl.textContent = item.category === "planned" ? "开始完成这项任务" : "该回来了";
+  if (item.category === "planned") {
+    snoozeBtn.style.display = "none";
+    laterBtn.textContent = "改时间";
+    pauseBtn.textContent = "待安排";
+  }
   textEl.textContent = item.text || "未命名事项";
   sourceEl.textContent = item.sourceTitle || item.sourceUrl || "没有记录来源";
   snoozeBtn.textContent = `再等 ${reminderMinutesFor(item.reminderMinutes)} 分钟`;
@@ -392,6 +397,15 @@ snoozeBtn.addEventListener("click", async () => {
 
 laterBtn.addEventListener("click", async () => {
   if (isTest || !id) return;
+  if (item?.category === "planned") {
+    const chosen = await chooseDateTimeWheel({ title: "更改飞书日程时间", description: "选择新的开始时间；日程时长保持不变。", defaultDate: item.calendarStartAt ? new Date(item.calendarStartAt) : tomorrowAt(9) });
+    if (!chosen) return;
+    if (chosen.error) { headingEl.textContent = "改时间失败"; textEl.textContent = chosen.error; return; }
+    const durationMinutes = Math.max(5, Math.round((new Date(item.calendarEndAt) - new Date(item.calendarStartAt)) / 60000) || 30);
+    const result = await sendMessage({ type: "createCalendarEvent", id, startAt: chosen.date.toISOString(), durationMinutes });
+    if (!result?.ok) { headingEl.textContent = "改时间失败"; textEl.textContent = result?.errorText || "飞书日程没有更新。"; return; }
+    headingEl.textContent = "已更改飞书日程"; textEl.textContent = formatTime(chosen.date.toISOString()); sourceEl.textContent = ""; closeSoon(); return;
+  }
   const later = await chooseLaterReminder(reminderMinutesFor(item?.reminderMinutes));
   if (!later) return;
   if (later.error) {
@@ -416,7 +430,7 @@ laterBtn.addEventListener("click", async () => {
 
 pauseBtn.addEventListener("click", async () => {
   if (!isTest && id) {
-    const result = await sendMessage({ type: "pause", id });
+    const result = await sendMessage({ type: "moveToInbox", id });
     if (!result?.ok) {
       headingEl.textContent = "暂停失败";
       textEl.textContent = result?.errorText || "请确认本机同步服务已启动。";
