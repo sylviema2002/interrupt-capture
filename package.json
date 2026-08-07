@@ -1,6 +1,6 @@
 {
   "name": "interrupt-capture",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": false,
   "description": "A lightweight browser extension for interrupted work capture, Feishu Base sync, and Feishu Calendar planning.",
   "author": "马骁艺",

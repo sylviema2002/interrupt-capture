@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "中断快记",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "中断任务、飞书规划日程与待安排三类任务的一句话快记工具。",
   "permissions": [
     "activeTab",

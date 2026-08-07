@@ -21,8 +21,6 @@ const saveSettingsBtn = document.querySelector("#saveSettingsBtn");
 const primarySubmitBtn = document.querySelector("#primarySubmitBtn");
 const feedbackBtn = document.querySelector("#feedbackBtn");
 let currentSource = { title: "", url: "" };
-let voiceReminderOverride = null;
-let textCommandParseTimer = null;
 let submissionInProgress = false;
 let selectedCategory = "interrupt";
 
@@ -137,35 +135,6 @@ function parseVoiceCommand(transcript) {
       : { text, category: "interrupt", remindAt: target.toISOString(), label: formatTime(target) };
   }
   return { text: source };
-}
-
-function scheduleTextCommandParse() {
-  window.clearTimeout(textCommandParseTimer);
-  textCommandParseTimer = window.setTimeout(() => {
-    if (submissionInProgress) return;
-    const rawText = quickText.value.trim();
-    const command = parseVoiceCommand(rawText);
-    if (command.awaitingCalendarText) {
-      setStatus("已识别时间段，请继续说事项，例如：写汇报。", "");
-      return;
-    }
-    if (!command.text) return;
-    if (!command.remindAt && !command.calendarStartAt) {
-      const plainText = command.text;
-      setStatus("未识别到时间，将按默认时间自动创建中断任务…", "");
-      textCommandParseTimer = window.setTimeout(() => {
-        if (submissionInProgress || quickText.value.trim() !== plainText) return;
-        quickText.value = plainText;
-        voiceReminderOverride = { text: plainText, category: "interrupt", label: "默认时间" };
-        form.requestSubmit();
-      }, 700);
-      return;
-    }
-    quickText.value = command.text;
-    voiceReminderOverride = command;
-    setStatus(command.calendarStartAt ? `已识别规划日程：${command.label}，正在自动写入…` : `已识别中断提醒：${command.label}，正在自动写入…`, "ok");
-    form.requestSubmit();
-  }, 800);
 }
 
 function makeId() {
@@ -687,32 +656,41 @@ async function init() {
 form.addEventListener("submit", async event => {
   event.preventDefault();
   if (submissionInProgress) return;
-  const text = quickText.value.trim();
-  if (!text) return;
+  const rawText = quickText.value.trim();
+  if (!rawText) return;
+  const parsedCommand = parseVoiceCommand(rawText);
+  if (parsedCommand.awaitingCalendarText) {
+    setStatus("已识别到时间段，还缺少事项内容。请补完整后按 Enter。", "");
+    return;
+  }
+  const text = parsedCommand.text || rawText;
+  if (!text.trim()) {
+    setStatus("请补一句回来要做什么。", "");
+    return;
+  }
   submissionInProgress = true;
-  const command = voiceReminderOverride || { category: "interrupt" };
+  const command = parsedCommand;
   const defaultMinutes = await getDefaultReminderMinutes();
   const category = command.calendarStartAt ? "planned" : "interrupt";
   const reminderMinutes = category === "interrupt" ? normalizeReminderMinutes(command.reminderMinutes || defaultMinutes) : defaultMinutes;
   const remindAt = category === "interrupt" ? (command.remindAt || minutesFromNow(reminderMinutes)) : (command.calendarStartAt || "");
-  const item = { id: makeId(), text, sourceTitle: currentSource.title || "", sourceUrl: currentSource.url || "", createdAt: new Date().toISOString(), category, reminderMinutes, remindAt, done: false, paused: category !== "interrupt", pausedAt: category === "inbox" ? new Date().toISOString() : "", lastRemindedAt: "" };
+  const item = { id: makeId(), text: text.trim(), sourceTitle: currentSource.title || "", sourceUrl: currentSource.url || "", createdAt: new Date().toISOString(), category, reminderMinutes, remindAt, done: false, paused: category !== "interrupt", pausedAt: category === "inbox" ? new Date().toISOString() : "", lastRemindedAt: "" };
   setStatus(category === "planned" ? "正在写入飞书并创建日程…" : "正在写入飞书…", "");
   const result = await sendMessage({ type: "createItem", item });
   if (!result.ok) { submissionInProgress = false; setStatus(`写入飞书失败：${result.errorText || "请确认本机同步服务已启动"}`, "bad"); return; }
   if (category === "planned") {
     const durationMinutes = Math.max(5, Math.round((new Date(command.calendarEndAt) - new Date(command.calendarStartAt)) / 60000) || 30);
     const calendar = await sendMessage({ type: "createCalendarEvent", id: result.item.id, startAt: command.calendarStartAt, durationMinutes });
-    if (!calendar?.ok) { submissionInProgress = false; voiceReminderOverride = null; quickText.value = ""; setStatus(`事项已保存，但创建飞书日程失败：${calendar?.errorText || "请检查日历权限"}`, "bad"); await render(); return; }
+    if (!calendar?.ok) { submissionInProgress = false; quickText.value = ""; setStatus(`事项已保存，但创建飞书日程失败：${calendar?.errorText || "请检查日历权限"}`, "bad"); await render(); return; }
   }
-  quickText.value = ""; voiceReminderOverride = null; submissionInProgress = false; updatePrimaryButton(defaultMinutes);
-  setStatus(category === "planned" ? `已创建规划任务和飞书日程：${command.label}。` : `已创建中断任务，将在 ${formatTime(remindAt)} 强提醒。`, "ok");
+  quickText.value = ""; submissionInProgress = false; updatePrimaryButton(defaultMinutes);
+  setStatus(category === "planned" ? `已创建规划任务和飞书日程：${command.label || formatTime(command.calendarStartAt)}。` : `已创建中断任务，将在 ${formatTime(remindAt)} 强提醒。`, "ok");
   await render();
 });
 
-quickText.addEventListener("input", scheduleTextCommandParse);
-
 quickText.addEventListener("keydown", event => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+  if (event.key === "Enter" && !event.isComposing) {
+    event.preventDefault();
     form.requestSubmit();
   }
 });
